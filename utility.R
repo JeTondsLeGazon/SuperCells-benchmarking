@@ -307,3 +307,30 @@ volcano_plot <- function(stats,
     p + geom_text_repel(aes(label=ifelse(logFC >= thres.annotated.fc & adj.p.value <= thres.annotated.p & logFC > logfc.thres, as.character(gene),'')), 
                             box.padding = 0.5, color = 'black', max.overlaps = Inf)
 }
+
+
+# Shows rank of given genes between a set of markers and superCells markers
+rank_plot <- function(concerned_genes, test_markers, super_markers){
+
+    rank1 <- match(concerned_genes, test_markers$gene)
+    rank2 <- match(concerned_genes, super_markers$`1`$gene)
+    rank3 <- match(concerned_genes, super_markers$`2`$gene)
+    rank4 <- match(concerned_genes, super_markers$`5`$gene)
+    rank5 <- match(concerned_genes, super_markers$`10`$gene)
+    
+    subplot <- function(x, y, g){
+        qplot(x, 
+              y, 
+              xlab = 'Single-cell (Seurat)', 
+              ylab = 'Super-cells') +
+            geom_abline(intercept = 0, slope = 1, color = 'red', size = 1) +
+            ggtitle(paste0('Top 100 DE genes comparison at gamma = ', g)) +
+            xlim(c(0, 100)) +
+            ylim(c(0, 100))
+    }
+    p1 <- subplot(rank1, rank2, 1)
+    p2 <- subplot(rank1, rank3, 2)
+    p3 <- subplot(rank1, rank4, 5)
+    p4 <- subplot(rank1, rank5, 10)
+    ggarrange(p1, p2, p3, p4)
+}

@@ -149,13 +149,13 @@ super_markers <- lapply(super_markers ,function(x) x %>%
 # Single cell markers
 single_markers_data <- FindVariableFeatures(sc_clustered_data, nfeatures = 1000)
 markers_grp1 <- FindMarkers(single_markers_data, 
-                            ident.1 = 'lps4_grp1', 
+                            ident.1 = 'treat_grp1', 
                             ident.2 = 'ctrl_grp1', 
                             only.pos = F, 
                             logfc.threshold = 0) %>%
     mutate(gene = rownames(.))
 markers_grp2 <- FindMarkers(single_markers_data, 
-                            ident.1 = 'lps4_grp2', 
+                            ident.1 = 'treat_grp2', 
                             ident.2 = 'ctrl_grp2', 
                             only.pos = F, 
                             logfc.threshold = 0) %>%
@@ -278,7 +278,7 @@ p4 <- ggplot(data = df, aes(x = value, y = Var1, color = grp)) +
     geom_boxplot()
 
 
-fig <- ggarrange(p1, p2,p3, p4, ncol = 2, nrow = 2)
+fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
 annotate_figure(fig, top = text_grob('Counts and normalized gene expression for dropped LogFC genes and top 3 genes', 
                                      face = 'bold', size = 14))
 
@@ -286,22 +286,5 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # Rank top n genes
 # ---------------------------------------------------------
 concerned_genes <- single_markers$gene[1:100]
-rank1 <- match(concerned_genes, single_markers$gene)
-rank2 <- match(concerned_genes, super_markers$`1`$gene)
-rank3 <- match(concerned_genes, super_markers$`2`$gene)
-rank4 <- match(concerned_genes, super_markers$`5`$gene)
-rank5 <- match(concerned_genes, super_markers$`10`$gene)
-par(mfrow = c(2, 2))
-plot(rank1, rank2, ylab = 'SuperCells (g=1) ranked DE genes', 
-     xlab = 'Single cells ranked DE genes') + 
-    abline(a = 0, b = 1, lty = 2, col = 'red')
-plot(rank1, rank3, ylab = 'SuperCells (g=2) ranked DE genes', 
-           xlab = 'Single cells ranked DE genes') + 
-    abline(a = 0, b = 1, lty = 2, col = 'red')
-plot(rank1, rank4, ylab = 'SuperCells (g=5) ranked DE genes', 
-           xlab = 'Single cells ranked DE genes') + 
-    abline(a = 0, b = 1, lty = 2, col = 'red')
-plot(rank1, rank5, ylab = 'SuperCells (g=10) ranked DE genes', 
-           xlab = 'Single cells ranked DE genes') + 
-    abline(a = 0, b = 1, lty = 2, col = 'red')
+rank_plot(concerned_genes, single_markers, super_markers)
 

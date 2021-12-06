@@ -31,7 +31,7 @@ source('processing.R')
 
 scpath <- '../sc_rnaseq/rds'
 bulkpath <- '../bulk_rnaseq/rds'
-filename <- 'Hagai2018_rabbit-lps.rds'
+filename <- 'Hagai2018_mouse-lps.rds'
 
 sc_data <- readRDS(file.path(scpath, filename))
 bulk_raw <- readRDS(file.path(bulkpath, filename))
@@ -274,6 +274,6 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # ---------------------------------------------------------
 # Rank top n genes
 # ---------------------------------------------------------
-concerned_genes <- single_markers$gene[1:100]
-rank_plot(concerned_genes, single_markers, super_markers)
+concerned_genes <- bulk_markers$`DESeq2-Wald`$gene[1:100]
+rank_plot(concerned_genes, bulk_markers$`DESeq2-Wald`, super_markers)
 

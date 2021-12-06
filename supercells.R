@@ -3,61 +3,10 @@
 # Wrapper for the Supercells functionnality to perform QC and DE analysis
 library(SuperCell)
 
-#Computes DE genes per cluster and in total for Supercells
-superCells_DE <- function(ge_matrix,  # gene expression matrix counts
-                          gamma,  # graining level of super cells
-                          knn,  # knn used for supercells construction
-                          clusters_  # clusters of each cell
-)
-{
-    super <- SCimplify(ge_matrix,
-                       k.knn = knn,
-                       gamma = gamma,
-                       n.var.genes = 1000,
-                       directed = FALSE
-    )
-    
-    super$cell_line <- supercell_assign(clusters = clusters_,
-                                        supercell_membership = super$membership,
-                                        method = "jaccard")
-    
-    super$GE <- supercell_GE(ge_matrix, super$membership)
-    
-    
-    
-    # DE
-    markers_super_per_cluster <- supercell_FindAllMarkers(ge = super$GE,
-                                                          supercell_size = super$supercell_size, 
-                                                          clusters = super$cell_line,  # different from what proposed
-                                                          logfc.threshold = 0,
-                                                          only.pos = T,
-                                                          do.bootstrapping = F)
-    
-    # create single data.frame() instead of split list for each cluster
-    total_super_markers <- data.frame(markers_super_per_cluster[[1]][FALSE, ])
-    for(i in seq_along(markers_super_per_cluster)){
-        if (class(markers_super_per_cluster[[i]]) == 'data.frame'){
-            total_super_markers <- rbind(total_super_markers, markers_super_per_cluster[[i]] %>%
-                                             data.frame() %>%
-                                             mutate(cluster = names(markers_super_per_cluster)[i],
-                                                    gene = rownames(.)))
-        }
-    }
-    
-    #filename <- paste('DE_results/superCells_markers_', gamma, '.csv', sep = '')
-    #write.csv(total_super_markers, file = filename, row.names = T)
-    
-    
-    total <- total_super_markers <- total_super_markers %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1))
-    
-    return(total)
-}
-
 
 # Uses new cell.annotation to perform DE for each cluster according to treatment
 # vs control and merge all DEs together for a single gamma
-superCells_DE_by_cluster <- function(data,  # gene expression matrix counts
+superCells_DE <- function(data,  # gene expression matrix counts
                                      gamma  # graining level of super cells
 )
 {
@@ -75,7 +24,11 @@ superCells_DE_by_cluster <- function(data,  # gene expression matrix counts
                                         method = "jaccard")
         
     super$GE <- supercell_GE(GetAssayData(data), super$membership)
-    
+    supercell_plot(super$graph.supercells, 
+                   group = super$cell_line, 
+                   seed = seed, 
+                   alpha = -pi/2,
+                   main  = paste0("Super-cell gamma = ", gamma, " colored by cell line assignment (rotated)"))
     # --------------------------------------------------------------------------
     
     # DE per cluster group
@@ -114,15 +67,8 @@ superCells_DEs <- function(data,  # normalized logcounts seurat object
 {
     super_DEs <- list()
     for(gam in gammas){
-        if(method == 'standard'){
-            super_res <- superCells_DE(GetAssayData(data),
-                                       gamma = gam,
-                                       knn = knn,
-                                       Idents(data))
-        }else{
-            super_res <- superCells_DE_by_cluster(data,
+            super_res <- superCells_DE(data,
                                        gamma = gam)
-        }
         super_DEs[[as.character(gam)]] <- super_res
     }
     return(super_DEs)

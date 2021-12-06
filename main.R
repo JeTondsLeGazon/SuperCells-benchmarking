@@ -15,6 +15,7 @@ library(tidyr)
 library(limma)
 library(ggpubr)
 library(ggrepel)
+library(magrittr)
 
 source('utility.R')
 source('supercells.R')
@@ -121,20 +122,8 @@ manual_bulk_markers <- find_markers_bulk(bulk_filtered_data) %>%
 gammas <- c(1, 2, 5, 10, 50)
 memory.limit(size=56000)
 
-# group1
-grp1 <- sc_clustered_data[, grep('_grp1$', Idents(sc_clustered_data))]
-super_markers_grp1 <- superCells_DEs(grp1, gammas, 5, method = 'else')
+super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, method = 'else')
 
-grp2 <- sc_clustered_data[, grep('_grp2$', Idents(sc_clustered_data))]
-super_markers_grp2 <- superCells_DEs(grp2, gammas, 5, method = 'else')
-
-# merge them together
-super_markers <- lapply(names(super_markers_grp1), function(x) rbind(super_markers_grp1[[x]], super_markers_grp2[[x]]))
-names(super_markers) <- gammas
-super_markers <- lapply(super_markers, function(x) x %>% 
-                            arrange(adj.p.value, 1 / (abs(logFC) + 1), T))
-super_markers <- lapply(super_markers, function(x) x[!duplicated(x$gene), ])
-                        
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
     ggtitle('Volcano plot of bulk data from SuperCells at level gamma = 5') +
     theme(plot.title = element_text(hjust = 0.5))

@@ -24,28 +24,6 @@ superCells_DE <- function(ge_matrix,  # gene expression matrix counts
     super$GE <- supercell_GE(ge_matrix, super$membership)
     
     
-    # QC
-    # supercell_plot(super$graph.supercells, 
-    #                group = super$cell_line, 
-    #                seed = 1, 
-    #                main = "Super-cell colored by cell line assignment")
-    # 
-    # purity <- supercell_purity(clusters = cell_types, 
-    #                            supercell_membership = super$membership)
-    # hist(purity, main = "Super-cell purity \nin terms of cell line composition")
-    
-    
-    # Clustering
-    # super.PCA <- supercell_prcomp(Matrix::t(super$GE),
-    #                               genes.use = super$genes.use,
-    #                               supercell_size = super$supercell_size,
-    #                               k = 20)
-    # D <- dist(super.PCA$x)
-    # super.clusters <- supercell_cluster(D = D, k = 5, supercell_size = super$supercell_size) 
-    # super$clustering <- super.clusters$clustering
-    # 
-    # map.cluster.to.cell.line <- supercell_assign(supercell_membership = super$clustering, clusters  = super$cell_line)
-    # super$clustering_reordered <- map.cluster.to.cell.line[super$clustering]
     
     # DE
     markers_super_per_cluster <- supercell_FindAllMarkers(ge = super$GE,
@@ -76,59 +54,55 @@ superCells_DE <- function(ge_matrix,  # gene expression matrix counts
     return(total)
 }
 
+
+# Uses new cell.annotation to perform DE for each cluster according to treatment
+# vs control and merge all DEs together for a single gamma
 superCells_DE_by_cluster <- function(data,  # gene expression matrix counts
                                      gamma  # graining level of super cells
 )
 {
-    supercells_clusters <- list()
-    for (cluster in names(table(Idents(data)))){
-        ge_matrix <- GetAssayData(data)[, Idents(data) == cluster]
-        
-        super <- SCimplify(ge_matrix,
-                           k.knn = 5,
-                           gamma = gamma,
-                           n.var.genes = 1000,
-                           directed = FALSE
-        )
-        
-        super$cell_line <- supercell_assign(clusters = rep(cluster, ncol(ge_matrix)),
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        
-        super$GE <- supercell_GE(ge_matrix, super$membership)
-        supercells_clusters[[cluster]] <- super
-    }
     
-    # Merging of all supercells together
-    supercells <- supercells_clusters[[1]]
-    for(cluster in names(supercells_clusters)[2:length(names(supercells_clusters))]){
-        supercells$GE <- cbind(supercells$GE, supercells_clusters[[cluster]]$GE)
-        supercells$membership <- c(supercells$membership, supercells_clusters[[cluster]]$membership + length(supercells$membership))
+    super <- SCimplify(GetAssayData(data),
+                       cell.annotation = Idents(data),
+                       k.knn = 5,
+                       gamma = gamma,
+                       n.var.genes = 1000,
+                       directed = FALSE
+    )
         
-        supercells$cell_line <- c(supercells$cell_line, supercells_clusters[[cluster]]$cell_line)
-        supercells$supercell_size <- c(supercells$supercell_size, supercells_clusters[[cluster]]$supercell_size)
-    }
-    
+    super$cell_line <- supercell_assign(clusters = Idents(data),
+                                        supercell_membership = super$membership,
+                                        method = "jaccard")
+        
+    super$GE <- supercell_GE(GetAssayData(data), super$membership)
     
     # --------------------------------------------------------------------------
     
-    # DE
-    clusters <- unique(supercells$cell_line)
+    # DE per cluster group
+    clusters <- unique(super$cell_line)
+    nb_groups <- sapply(clusters, function(x) as.character(str_sub(x, -1, -1)))
     
-    DE <- supercell_FindMarkers(ge = supercells$GE,
-                                supercell_size = supercells$supercell_size,
-                                clusters = supercells$cell_line,
-                                ident.1 = clusters[grep('^treat', clusters)],
-                                ident.2 = clusters[grep('^ctrl', clusters)],
-                                logfc.threshold = 0,
-                                only.pos = T,
-                                do.bootstrapping = F)
-    
-    DE <- DE %>%
-            mutate(gene = rownames(.)) %>%
-            arrange(adj.p.value, 1 / (abs(logFC) + 1))
-    
-    return(DE)
+    DEs <- c()
+    for(i in seq_along(max(nb_groups)))
+    {
+        DE <- supercell_FindMarkers(ge = super$GE,
+                                    supercell_size = super$supercell_size,
+                                    clusters = super$cell_line,
+                                    ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
+                                    ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
+                                    logfc.threshold = 0,
+                                    only.pos = T,
+                                    do.bootstrapping = F)
+        
+        DE <- DE %>%
+                mutate(gene = rownames(.))
+        DEs <- rbind(DEs, DE)
+    }
+    DEs <- DEs %>%
+        arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
+        subset(!duplicated(.)) %>%
+        set_rownames(.$gene)
+    return(DEs)
 }
 
 

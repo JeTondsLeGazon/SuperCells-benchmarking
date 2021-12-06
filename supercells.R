@@ -52,8 +52,8 @@ superCells_DE <- function(data,  # gene expression matrix counts
     }
     DEs <- DEs %>%
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-        subset(!duplicated(.)) %>%
-        set_rownames(.$gene)
+        subset(!duplicated(.))
+    rownames(DEs) <- DEs$gene
     return(DEs)
 }
 

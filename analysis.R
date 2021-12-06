@@ -65,6 +65,42 @@ compute_DE_bulk <- function(data, meta){
 }
 
 
+# Computes differential expression for single-cell data
+singleCell_DE <- function(sc_data, var.features){
+    sc_data <- FindVariableFeatures(sc_data, nfeatures = var.features)
+    
+    # Identify number of groups for paired test
+    nb_groups <- sapply(levels(sc_data), 
+                        function(x) as.numeric(str_sub(x, -1, -1)))
+    
+    single_markers <- c()
+    for(i in seq_along(max(nb_groups))){
+        group_id_treat <- grep(paste0('^treat.+', i, '$'), levels(sc_data))
+        group_id_ctrl <- grep(paste0('^ctrl.+', i, '$'), levels(sc_data))
+        markers <- FindMarkers(single_markers_data,
+                               ident.1 = levels(sc_data)[group_id_treat],
+                               ident.2 = levels(sc_data)[group_id_ctrl],
+                               only.pos = F, 
+                               logfc.threshold = 0) %>%
+            mutate(gene = rownames(.))
+        single_markers <- rbind(single_markers, markers)
+    }
+    
+
+    
+    single_markers <- single_markers %>%
+        dplyr::rename(logFC = avg_log2FC, adj.p.value = p_val_adj) %>%
+        arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
+        subset(!duplicated(.$gene))
+    
+    
+    volcano_plot(single_markers, logfc.thres = 0.5) +
+        ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
+        theme(plot.title = element_text(hjust = 0.5))
+    return(single_markers)
+}
+
+
 # Computes the match between the topn genes between two sets, normalized [0, 1]
 gene_match <- function(set1, set2, topn = 100){
     

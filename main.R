@@ -2,7 +2,6 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
-library(utils)
 setwd('SuperCells-benchmarking/')
 
 library(Seurat)
@@ -18,9 +17,8 @@ library(limma)
 library(ggpubr)
 library(ggrepel)
 library(stringr)
+library(tidyseurat)
 
-this.dir <- dirname(parent.frame(2)$ofile)
-setwd(this.dir)
 source('utility.R')
 source('supercells.R')
 source('analysis.R')
@@ -148,30 +146,8 @@ super_markers <- lapply(super_markers ,function(x) x %>%
 # DE single cells
 # ---------------------------------------------------------
 # Single cell markers
-single_markers_data <- FindVariableFeatures(sc_clustered_data, nfeatures = 1000)
-markers_grp1 <- FindMarkers(single_markers_data, 
-                            ident.1 = 'treat_grp1', 
-                            ident.2 = 'ctrl_grp1', 
-                            only.pos = F, 
-                            logfc.threshold = 0) %>%
-    mutate(gene = rownames(.))
-markers_grp2 <- FindMarkers(single_markers_data, 
-                            ident.1 = 'treat_grp2', 
-                            ident.2 = 'ctrl_grp2', 
-                            only.pos = F, 
-                            logfc.threshold = 0) %>%
-    mutate(gene = rownames(.))
 
-single_markers <- rbind(markers_grp1, markers_grp2) %>%
-    dplyr::rename(logFC = avg_log2FC, adj.p.value = p_val_adj)
-
-single_markers <- single_markers %>%
-    arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-    subset(!duplicated(.))
-
-volcano_plot(single_markers, logfc.thres = 0.5) +
-    ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
-    theme(plot.title = element_text(hjust = 0.5))
+single_markers <- singleCell_DE(sc_clustered_data, var.features = 500)
 
 single_markers <- single_markers %>%
     subset(adj.p.value < 0.05 & logFC > 0)
@@ -193,7 +169,7 @@ match_scores <- data.frame(
 ggplot(data = match_scores, aes(x = gammas)) +
     geom_line(aes(y = super_vs_single, color = 'SuperCells vs single cells (Seurat FindAllMarkers)'), size = 1) +
     geom_line(aes(y = super_vs_bulk, color = 'SuperCells vs bulk (DESeq2 Wald)'), size = 1) +
-    geom_point(aes(y = single_vs_bulk, color = 'Single cells (Seurat FindAllMarkers) vs bulk (DESeq2 Wald)'), size = 3) +
+    geom_point(aes(y = single_vs_bulk, color = 'Single cells (Seurat FindAllMarkers) vs bulk (DESeq2 Wald)'), size = 4) +
     geom_point(aes(y = super_vs_single), size = 3, color = '#619CFF') +
     geom_point(aes(y = super_vs_bulk), size = 3, color = '#00BA38') +
     scale_x_continuous(trans='log2', breaks = c(1, 2, 5, 10, 50), labels = c(1, 2, 5, 10, 50)) +
@@ -201,7 +177,6 @@ ggplot(data = match_scores, aes(x = gammas)) +
     xlab('Gammas (logscale)') +
     ylim(c(0, 1)) +
     ggtitle('Comparison of top DE genes between single cells, bulk, and Supercells RNA analysis')
-    #theme(panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
 
 
 # ---------------------------------------------------------
@@ -286,6 +261,6 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # ---------------------------------------------------------
 # Rank top n genes
 # ---------------------------------------------------------
-concerned_genes <- bulk_markers$`DESeq2-Wald`$gene[1:100]
-rank_plot(concerned_genes, bulk_markers$`DESeq2-Wald`, super_markers)
+concerned_genes <- single_markers$gene[1:100]
+rank_plot(concerned_genes, single_markers, super_markers)
 

@@ -101,6 +101,59 @@ scaling_factor <- function(seuratdata, method = 'manual'){
 }
 
 
+# Quality control for the single-cell data prior to filtering and downstream
+# analysis
+singleCell_qc <- function(sc_data){
+    
+    # Outliers check
+    print(FeatureScatter(sc_data, feature1 = 'nFeature_RNA', feature2 = 'nCount_RNA',
+                   group.by = 'cell_type'))
+    
+    # Check quality with mitochondrial genes
+    sc <- PercentageFeatureSet(sc_data, "^MT-", col.name = "percent_mito")
+    
+    # Check quality with ribosomal protein (could also indicate dead cells)
+    sc <- PercentageFeatureSet(sc_data, "^RP[SL]", col.name = "percent_ribo")
+    
+    # Check quality with hemoglobin (blood contamination)
+    sc <- PercentageFeatureSet(sc_data, "^HB[^(P)]", col.name = "percent_hb")
+    
+    # Counts per cell, should be > 500 to be usable
+    p <- tidyseurat::ggplot(data = sc_data, aes(x = nCount_RNA, color = label, fill = label)) +
+        geom_density(alpha = 0.2) +
+        scale_x_log10() +
+        theme_classic() + 
+        ylab('Cell density') +
+        geom_vline(xintercept = 500)
+    print(p)
+    
+    # Gene per cell
+    p <- tidyseurat::ggplot(data = sc_data, aes(x = nFeature_RNA, color = label, fill = label)) + 
+        geom_density(alpha = 0.2) +
+        scale_x_log10() +
+        theme_classic() + 
+        ylab('Cell density') +
+        geom_vline(xintercept = 300)
+    print(p)
+    
+    # Doublet density
+    sc_data$doubletScore <- computeDoubletDensity(GetAssayData(sc_data))
+    boxplot(sc_data$doubletScore, xlab = '', ylab = 'Doublet density score') +
+        abline(h = quantile(sc_data$doubletScore, 0.95), col = 'red', lwd = 1) +
+        legend('95th percentile of data')
+    
+    p <- VlnPlot(sc_data, features = c('nCount_RNA', 'nFeature_RNA' ,'percent_mito', 'percent_ribo', 'percent_hb'),
+            group.by = 'cell_type')
+    print(p)
+    
+    # Transcript capture efficiency
+    p <- smoothScatter(log2(rowSums(GetAssayData(sc_data)) + 1), 
+                  rowSums(GetAssayData(sc) > 0)/ncol(GetAssayData(sc)),
+                  pch = 19, col = "red", ylab = 'Detection probability',
+                  xlab = 'Total cell count')
+    print(p)
+}
+
 
 # Normalization for single cell data based on either seurat normalization or manual
 # log-norm from DESeq2

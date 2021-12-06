@@ -115,31 +115,20 @@ superCells_DE_by_cluster <- function(data,  # gene expression matrix counts
     # DE
     clusters <- unique(supercells$cell_line)
     
-    markers_super_per_cluster <- supercell_FindMarkers(ge = supercells$GE,
-                                                          supercell_size = supercells$supercell_size,
-                                                          clusters = supercells$cell_line,
-                                                          ident.1 = clusters[grep('^treat', clusters)],
-                                                          ident.2 = clusters[grep('^ctrl', clusters)],
-                                                          logfc.threshold = 0,
-                                                          only.pos = F,
-                                                          do.bootstrapping = F)
+    DE <- supercell_FindMarkers(ge = supercells$GE,
+                                supercell_size = supercells$supercell_size,
+                                clusters = supercells$cell_line,
+                                ident.1 = clusters[grep('^treat', clusters)],
+                                ident.2 = clusters[grep('^ctrl', clusters)],
+                                logfc.threshold = 0,
+                                only.pos = T,
+                                do.bootstrapping = F)
     
-    # create single data.frame() instead of split list for each cluster
-    total_super_markers <- data.frame(markers_super_per_cluster[[1]][FALSE, ])
-    for(i in seq_along(markers_super_per_cluster)){
-        if (class(markers_super_per_cluster[[i]]) == 'data.frame'){
-            total_super_markers <- rbind(total_super_markers, markers_super_per_cluster[[i]] %>%
-                                             data.frame() %>%
-                                             mutate(cluster = names(markers_super_per_cluster)[i],
-                                                    gene = rownames(.)))
-        }
-    }
+    DE <- DE %>%
+            mutate(gene = rownames(.)) %>%
+            arrange(adj.p.value, 1 / (abs(logFC) + 1))
     
-
-    total <- total_super_markers <- total_super_markers %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1))
-    
-    return(total)
+    return(DE)
 }
 
 

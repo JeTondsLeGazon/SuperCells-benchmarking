@@ -2,6 +2,8 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
+library(utils)
+setwd('SuperCells-benchmarking/')
 
 library(Seurat)
 library(dplyr)
@@ -15,8 +17,10 @@ library(tidyr)
 library(limma)
 library(ggpubr)
 library(ggrepel)
-library(magrittr)
+library(stringr)
 
+this.dir <- dirname(parent.frame(2)$ofile)
+setwd(this.dir)
 source('utility.R')
 source('supercells.R')
 source('analysis.R')
@@ -78,7 +82,15 @@ sc_normalized_data <- NormalizeObject(sc_filtered_data)
 # Subgroups may appear in the single cell data, which should be clustered to
 # compare these groups between each other
 sc_clustered_data <- sub_cluster(sc_normalized_data)
-
+# ------------------------------------------------------------------------------
+# CanoGamez2020_memory-Th17: matrix(c(-10, 10, -2, 2), ncol = 2)
+# mouse-lps : matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
+# pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
+# rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
+centers <- matrix(c(-5, -5, 7, 5, 0, -10, 5, -10), ncol = 2)
+sc_clustered_data <- reIdent(sc_clustered_data, 
+                             initial_centers = centers, 
+                             labels = c('ctrl_grp1', 'ctrl_grp2', 'treat_grp1', 'treat_grp2'))
 
 
 # bulk data plot
@@ -122,7 +134,7 @@ manual_bulk_markers <- find_markers_bulk(bulk_filtered_data) %>%
 gammas <- c(1, 2, 5, 10, 50)
 memory.limit(size=56000)
 
-super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, method = 'else')
+super_markers <- superCells_DEs(sc_clustered_data, gammas, 5)
 
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
     ggtitle('Volcano plot of bulk data from SuperCells at level gamma = 5') +

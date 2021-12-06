@@ -159,27 +159,30 @@ sub_cluster <- function(singleCell_data){
         RunUMAP(dims = 1:10)
     
     print(DimPlot(sc, reduction = 'umap'))
-    # CanoGamez2020_memory-Th17: matrix(c(-10, 10, -2, 2), ncol = 2)
-    # mouse-lps : matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
-    # pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
-    # rat-lps: matrix(c(-5, -5, 7, 7, -5, 5, 5, -5), ncol = 2)
-    initial_centers <- matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
+    return(sc)
+}
+
+
+# Change identification of cells based on clustering / analysis
+reIdent <- function(sc, initial_centers = NULL, labels  = NULL){
+    if(is.null(initial_centers) | is.null(labels)){
+        return
+    }
     clustering <- kmeans(Embeddings(sc, reduction = 'umap'), 
                          centers = initial_centers, 
                          iter.max = 10, nstart = 1)
     Idents(sc) <- clustering$cluster
-    sorted_sizes <- sort(clustering$withinss, T)
+    
+    
+    sorted_sizes <- clustering$withinss
     new.idents <- c(as.character(which(clustering$withinss == sorted_sizes[1])),
                     as.character(which(clustering$withinss == sorted_sizes[2])),
                     as.character(which(clustering$withinss == sorted_sizes[3])),
                     as.character(which(clustering$withinss == sorted_sizes[4])))
-    new.idents.labels <- c('ctrl_grp1', 'treat_grp1', 'ctrl_grp2', 'treat_grp2')
-    # Hagai rabbit: c('lsp4_grp1', 'ctrl_grp1', 'ctrl_grp2', 'lps4_grp2')
-    # CanoGamaz: c('Th17', 'unstim')
-    # Hagai lps: c('ctrl_grp1', 'lps4_grp1', 'ctrl_grp2', 'lps4_grp2')
+    new.idents.labels <- labels
+
     names(new.idents.labels) <- new.idents
     sc <- RenameIdents(sc, new.idents.labels)
     print(DimPlot(sc, reduction = 'umap'))
-    Idents(singleCell_data) <- Idents(sc)
-    return(singleCell_data)
+    return(sc)
 }

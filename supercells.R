@@ -3,7 +3,6 @@
 # Wrapper for the Supercells functionnality to perform QC and DE analysis
 library(SuperCell)
 
-
 # Uses new cell.annotation to perform DE for each cluster according to treatment
 # vs control and merge all DEs together for a single gamma
 superCells_DE <- function(data,  # gene expression matrix counts
@@ -24,16 +23,16 @@ superCells_DE <- function(data,  # gene expression matrix counts
                                         method = "jaccard")
         
     super$GE <- supercell_GE(GetAssayData(data), super$membership)
-    supercell_plot(super$graph.supercells, 
-                   group = super$cell_line, 
-                   seed = seed, 
-                   alpha = -pi/2,
-                   main  = paste0("Super-cell gamma = ", gamma, " colored by cell line assignment (rotated)"))
+    #supercell_plot(super$graph.supercells, 
+    #               group = super$cell_line, 
+    #               seed = 0, 
+    #               alpha = -pi/2,
+    #               main  = paste0("Super-cell gamma = ", gamma, " colored by cell line assignment (rotated)"))
     # --------------------------------------------------------------------------
     
     # DE per cluster group
     clusters <- unique(super$cell_line)
-    nb_groups <- sapply(clusters, function(x) as.character(str_sub(x, -1, -1)))
+    nb_groups <- sapply(clusters, function(x) as.numeric(str_sub(x, -1, -1)))
     
     DEs <- c()
     for(i in seq_along(max(nb_groups)))
@@ -62,8 +61,8 @@ superCells_DE <- function(data,  # gene expression matrix counts
 # Computes DE genes for superCells at different graining levels
 superCells_DEs <- function(data,  # normalized logcounts seurat object
                            gammas,  # list of graning levels to use
-                           knn,  # number of nearest neighbors to use
-                           method = 'standard') 
+                           knn  # number of nearest neighbors to use
+                           ) 
 {
     super_DEs <- list()
     for(gam in gammas){

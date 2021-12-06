@@ -28,8 +28,8 @@ source('processing.R')
 # Hagai2018_rabbit-lps, Hagai2018_rat-lps, Hagai2018_rat-pic, Angelidis2019_pneumo,
 # Angelidis2019_alvmac, CanoGamez2020_naive-iTreg, CanoGamez2020_memory-Th17
 
-scpath <- './sc_rnaseq/rds'
-bulkpath <- './bulk_rnaseq/rds'
+scpath <- '../sc_rnaseq/rds'
+bulkpath <- '../bulk_rnaseq/rds'
 filename <- 'Hagai2018_rabbit-lps.rds'
 
 sc_data <- readRDS(file.path(scpath, filename))

@@ -173,7 +173,7 @@ sub_cluster <- function(singleCell_data){
                     as.character(which(clustering$withinss == sorted_sizes[2])),
                     as.character(which(clustering$withinss == sorted_sizes[3])),
                     as.character(which(clustering$withinss == sorted_sizes[4])))
-    new.idents.labels <- c('lps4_grp1', 'ctrl_grp1', 'ctrl_grp2', 'lps4_grp2')
+    new.idents.labels <- c('ctrl_grp1', 'treat_grp1', 'ctrl_grp2', 'treat_grp2')
     # Hagai rabbit: c('lsp4_grp1', 'ctrl_grp1', 'ctrl_grp2', 'lps4_grp2')
     # CanoGamaz: c('Th17', 'unstim')
     # Hagai lps: c('ctrl_grp1', 'lps4_grp1', 'ctrl_grp2', 'lps4_grp2')

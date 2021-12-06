@@ -113,9 +113,13 @@ superCells_DE_by_cluster <- function(data,  # gene expression matrix counts
     # --------------------------------------------------------------------------
     
     # DE
-    markers_super_per_cluster <- supercell_FindAllMarkers(ge = supercells$GE,
-                                                          supercell_size = supercells$supercell_size, 
-                                                          clusters = supercells$cell_line,  # different from what proposed
+    clusters <- unique(supercells$cell_line)
+    
+    markers_super_per_cluster <- supercell_FindMarkers(ge = supercells$GE,
+                                                          supercell_size = supercells$supercell_size,
+                                                          clusters = supercells$cell_line,
+                                                          ident.1 = clusters[grep('^treat', clusters)],
+                                                          ident.2 = clusters[grep('^ctrl', clusters)],
                                                           logfc.threshold = 0,
                                                           only.pos = F,
                                                           do.bootstrapping = F)

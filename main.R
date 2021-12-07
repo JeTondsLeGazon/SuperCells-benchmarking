@@ -2,7 +2,7 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
-#setwd(paste0(getwd(), '/SuperCells-benchmarking'))
+setwd(paste0(getwd(), '/SuperCells-benchmarking'))
 
 library(Seurat)
 library(dplyr)
@@ -54,7 +54,7 @@ Idents(sc_data) <- 'label'
 # Effects of normalization:
 # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1
 sc_data <- singleCell_qc(sc_data)
-sc_filtered_data <- singleCell_filtering(sc_data)
+sc_filtered_data <- singleCell_filtering(sc_data, max.ribo.percent = 55)
 bulk_filtered_data <- bulk_qc_and_filtering(bulk_data)
 
 
@@ -87,10 +87,10 @@ sc_clustered_data <- sub_cluster(sc_normalized_data)
 # mouse-lps : matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
 # pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
 # rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
-centers <- matrix(c(-5, -5, 7, 5, 0, -10, 5, -10), ncol = 2)
+centers <- matrix(c(-7, -5, 5, 7, 5, -7, -7, 3), ncol = 2)
 sc_clustered_data <- reIdent(sc_clustered_data, 
                              initial_centers = centers, 
-                             labels = c('ctrl_grp1', 'ctrl_grp2', 'treat_grp1', 'treat_grp2'))
+                             labels = c('treat_grp1', 'treat_grp2', 'ctrl_grp2', 'ctrl_grp1'))
 
 
 # bulk data plot
@@ -137,7 +137,7 @@ memory.limit(size=56000)
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5)
 
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
-    ggtitle('Volcano plot of bulk data from SuperCells at level gamma = 5') +
+    ggtitle('Volcano plot of SuperCells at level gamma = 5') +
     theme(plot.title = element_text(hjust = 0.5))
 
 super_markers <- lapply(super_markers ,function(x) x %>% 
@@ -150,7 +150,9 @@ super_markers <- lapply(super_markers ,function(x) x %>%
 # Single cell markers
 
 single_markers <- singleCell_DE(sc_clustered_data, var.features = 500)
-
+volcano_plot(single_markers, logfc.thres = 0.5) +
+    ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
+    theme(plot.title = element_text(hjust = 0.5))
 single_markers <- single_markers %>%
     subset(adj.p.value < 0.05 & logFC > 0)
 
@@ -180,14 +182,13 @@ ggplot(data = match_scores, aes(x = gammas)) +
     ylim(c(0, 1)) +
     ggtitle('Comparison of top DE genes between single cells, bulk, and Supercells RNA analysis')
 
-
 # ---------------------------------------------------------
 # Stats comparison
 # ---------------------------------------------------------
 
-log.thres <- 3.5
-log.thres2 <- 0.7
-gt_coverage_wrapper(subset(bulk_markers$`DESeq2-Wald`, logFC > log.thres), 
+log.thres <- 1
+log.thres2 <- 1
+gt_coverage_wrapper(subset(single_markers, logFC > log.thres), 
                     lapply(super_markers, function(x) subset(x, logFC > log.thres2)))
 
 p1 <- LogFcLogFcPlot(single_markers, super_markers$`1`) + 
@@ -228,13 +229,13 @@ annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for Bulk and single c
 # ---------------------------------------------------------
 # Analysis pvalue and logFC
 # ---------------------------------------------------------
-selected_genes <- super_markers$`1`$gene[1:100]
-logFCs <- data.frame(lapply(super_markers, function(x) x[x$gene %in% selected_genes, 'logFC']), row.names = selected_genes, check.rows = F)
+selected_genes <- super_markers$`1`$gene[1:1000]
+logFCs <- data.frame(lapply(super_markers, function(x) x[selected_genes, 'logFC']), row.names = selected_genes, check.rows = F)
 colnames(logFCs) <- gammas
 logFCs$diff1_50 <- logFCs[1] - logFCs[5]
 
 #Observe difference between gammas in terms of logFCs -> select those
-target_genes <- rownames(logFCs)[logFCs$diff1_50/logFCs[1] > 0.2]
+target_genes <- rownames(logFCs)[logFCs$diff1_50/logFCs[1] > 0.5]
 
 tmp <- logFCs[target_genes, -6] %>% group_by(gene = rownames(.)) %>% melt()
 ggplot(data = tmp, aes(x = variable, y = value, group = gene, color = gene)) + 
@@ -265,4 +266,3 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # ---------------------------------------------------------
 concerned_genes <- single_markers$gene[1:100]
 rank_plot(concerned_genes, single_markers, super_markers)
-

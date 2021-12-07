@@ -43,7 +43,7 @@ superCells_DE <- function(data,  # gene expression matrix counts
                                     ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
                                     ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
                                     logfc.threshold = 0,
-                                    only.pos = T,
+                                    only.pos = F,
                                     do.bootstrapping = F) %>%
                 mutate(gene = rownames(.))
         DEs <- rbind(DEs, DE)

@@ -77,7 +77,7 @@ singleCell_DE <- function(sc_data, var.features){
     for(i in seq_along(max(nb_groups))){
         group_id_treat <- grep(paste0('^treat.+', i, '$'), levels(sc_data))
         group_id_ctrl <- grep(paste0('^ctrl.+', i, '$'), levels(sc_data))
-        markers <- FindMarkers(single_markers_data,
+        markers <- FindMarkers(sc_data,
                                ident.1 = levels(sc_data)[group_id_treat],
                                ident.2 = levels(sc_data)[group_id_ctrl],
                                only.pos = F, 
@@ -93,10 +93,6 @@ singleCell_DE <- function(sc_data, var.features){
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
         subset(!duplicated(.$gene))
     
-    
-    volcano_plot(single_markers, logfc.thres = 0.5) +
-        ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
-        theme(plot.title = element_text(hjust = 0.5))
     return(single_markers)
 }
 

@@ -91,10 +91,15 @@ singleCell_qc <- function(sc_data){
         geom_smooth() +
         ylab('Fraction of cells with detected gene') +
         xlab('Total logcounts per gene') +
-        scale_x_log10() +
         ggtitle('Capture efficiency') +
         theme(plot.title = element_text(size = 20, face = "bold")) +
-        ggMarginal(margins = 'x', color="darkred", fill = 'darkred', alpha = 0.2, size=4)
+        geom_vline(xintercept = log2(200), color = 'red', size = 1)
+    
+    p <- ggMarginal(p, margins = 'x', 
+                    color="darkred", 
+                    fill = 'darkred',
+                    alpha = 0.2, 
+                    size = 4)
     print(p)
     return (sc_data)
 }
@@ -105,7 +110,7 @@ singleCell_filtering <- function(sc_data,
                                  max.doublet.percentile = 0.95,
                                  min.gene.per.cell = 300,
                                  min.count.per.cell = 500,
-                                 min.count.per.genes = 1000,
+                                 min.count.per.genes = 200,
                                  min.ribo.percent = 0,
                                  max.mito.percent = 20){
     
@@ -119,7 +124,7 @@ singleCell_filtering <- function(sc_data,
                           (doubletScore < quantile(doubletScore, max.doublet.percentile)),
                       features = genes.use)
     cat('Dimensions after filtering: ')
-    cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\ns'))
+    cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\n'))
     return(sc_data)
 }
 

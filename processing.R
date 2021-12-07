@@ -98,8 +98,7 @@ singleCell_qc <- function(sc_data){
     p <- ggMarginal(p, margins = 'x', 
                     color="darkred", 
                     fill = 'darkred',
-                    alpha = 0.2, 
-                    size = 4)
+                    alpha = 0.2)
     print(p)
     return (sc_data)
 }
@@ -111,14 +110,17 @@ singleCell_filtering <- function(sc_data,
                                  min.gene.per.cell = 300,
                                  min.count.per.cell = 500,
                                  min.count.per.genes = 200,
-                                 min.ribo.percent = 0,
-                                 max.mito.percent = 20){
+                                 max.ribo.percent = 40,
+                                 max.mito.percent = 20,
+                                 max.hb.percent = 5){
     
     cat('Dimensions prior to filtering: ')
     cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\n'))
     genes.use <- rownames(GetAssayData(sc_data))[rowSums(GetAssayData(sc_data)) > min.count.per.genes]
     sc_data <- subset(sc_data, 
                       subset = (percent_mito < max.mito.percent) &
+                          (percent_ribo < max.ribo.percent) &
+                          (percent_hb < max.hb.percent) &
                           (nFeature_RNA > min.gene.per.cell) &
                           (nCount_RNA > min.count.per.cell) & 
                           (doubletScore < quantile(doubletScore, max.doublet.percentile)),
@@ -185,7 +187,22 @@ sub_cluster <- function(singleCell_data){
         RunPCA() %>%
         RunUMAP(dims = 1:10)
     
-    print(DimPlot(sc, reduction = 'umap'))
+    p <- DimPlot(sc, reduction = 'umap') +
+        ggtitle('Umap dimension reduction for cell idents')
+    print(p)
+    
+    if('replicate' %in% names(sc@meta.data)){
+        p <- DimPlot(sc, reduction = 'umap', group.by = 'replicate') +
+            ggtitle('Umap dimension reduction between replicates')
+        print(p)
+    }
+    
+    batch.id <- grep('batch', names(sc@meta.data))
+    if(length(batch.id) > 0){
+        p <- DimPlot(sc, reduction = 'umap', group.by = names(sc@meta.data)[batch.id]) +
+            ggtitle('Umap dimension reduction between batches')
+        print(p)
+    }
     return(sc)
 }
 

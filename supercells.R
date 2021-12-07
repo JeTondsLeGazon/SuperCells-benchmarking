@@ -21,8 +21,8 @@ superCells_DE <- function(data,  # gene expression matrix counts
     super$cell_line <- supercell_assign(clusters = Idents(data),
                                         supercell_membership = super$membership,
                                         method = "jaccard")
-        
-    super$GE <- supercell_GE(GetAssayData(data), super$membership)
+    
+    super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
     #supercell_plot(super$graph.supercells, 
     #               group = super$cell_line, 
     #               seed = 0, 
@@ -44,9 +44,7 @@ superCells_DE <- function(data,  # gene expression matrix counts
                                     ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
                                     logfc.threshold = 0,
                                     only.pos = T,
-                                    do.bootstrapping = F)
-        
-        DE <- DE %>%
+                                    do.bootstrapping = F) %>%
                 mutate(gene = rownames(.))
         DEs <- rbind(DEs, DE)
     }

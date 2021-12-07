@@ -52,7 +52,8 @@ Idents(sc_data) <- 'label'
 # ---------------------------------------------------------
 # Effects of normalization:
 # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1
-sc_filtered_data <- sc_qc_and_filtering(sc_data)
+sc_data <- singleCell_qc(sc_data)
+sc_filtered_data <- singleCell_filtering(sc_data)
 bulk_filtered_data <- bulk_qc_and_filtering(bulk_data)
 
 

@@ -4,85 +4,6 @@
 library(scDblFinder)
 
 
-# Quality control and processing of single cell RNA data
-sc_qc_and_filtering <- function(dataset, plot_figures = F){
-    
-    # Remove doublets
-    doublet_cells <- doubletFinder(dataset)
-    
-    cat(sprintf('Found %s doublets\n', length(doublet_cells)))
-    sc <- subset(dataset, cells = WhichCells(dataset, colnames(dataset)[!(colnames(dataset) %in% doublet_cells)]))
-    
-    if (plot_figures){
-        # check potential outliers for counts
-        FeatureScatter(sc, feature1 = 'nFeature_RNA', feature2 = 'nCount_RNA',
-                       group.by = 'cell_type')
-    }
-    
-    
-    # Check quality with mitochondrial genes
-    sc <- PercentageFeatureSet(sc, "^MT-", col.name = "percent_mito")
-    
-    # Check quality with ribosomal protein (could also indicate dead cells)
-    sc <- PercentageFeatureSet(sc, "^RP[SL]", col.name = "percent_ribo")
-    
-    # Check quality with hemoglobin (blood contamination)
-    sc <- PercentageFeatureSet(sc, "^HB[^(P)]", col.name = "percent_hb")
-    
-    
-    if (plot_figures){
-        VlnPlot(sc, features = c('nCount_RNA', 'nFeature_RNA' ,'percent_mito', 'percent_ribo', 'percent_hb'),
-                group.by = 'cell_type')
-        
-        # Transcript capture efficiency
-        smoothScatter(log2(rowSums(GetAssayData(sc))+1), 
-                      rowSums(GetAssayData(sc)>0)/ncol(GetAssayData(sc)),
-                      pch=19,col="red", ylab = 'Detection probability',
-                      xlab = 'Total cell count')
-        
-        # Library size
-        hist(colSums(GetAssayData(sc))/1e3, xlab = 'Library size in thousands', 
-             ylab = 'Number of cells', breaks = 10, main = 'Library size')
-    }
-    
-    # Detection based filtering
-    gene_level <- 500  # number of minimum genes per cell -> drop cells
-    cell_level <- 30  # number of minimum cell with gene -> drop genes
-    transcript_level <- 50  # number of minimum transcript level for a gene -> drop gene
-    
-    dim.prefiltering <- dim(sc)
-    filtered_sc <- subset(sc, cells = WhichCells(sc, expression = nFeature_RNA > gene_level))
-    filtered_sc <- subset(filtered_sc, 
-                          features = rownames(filtered_sc)[rowSums(GetAssayData(filtered_sc) > 0) > cell_level])
-    filtered_sc <- subset(filtered_sc,
-                          features = rownames(filtered_sc)[rowSums(GetAssayData(filtered_sc)) > transcript_level])
-    
-    cat(sprintf('Dropped %s genes and %s cells by detection-based filtering\n', 
-                nrow(sc)-nrow(filtered_sc), ncol(sc) - ncol(filtered_sc)))
-    
-    sc <- filtered_sc
-    
-    if (plot_figures){
-        # Top genes
-        n = 20
-        frac_per_cell <- GetAssayData(sc) / colSums(GetAssayData(sc)) * 100
-        most_expressed <- order(apply(frac_per_cell, 1, median), decreasing = T)[n:1]
-        boxplot(t(as.matrix(frac_per_cell[most_expressed, ])), horizontal = TRUE, 
-                xlab = '% of total count per cell', cex = 0.1, las = 1, 
-                col = (scales::hue_pal())(n)[n:1])
-    }
-    # Mito / ribo filtering
-    # Based on observation, remove cells with too high mitochondrial gene fraction 
-    # or too low ribosomic gene fraction (proposed 20% and 5%, respectively)
-    cat(sprintf('Dropped %s cells based on mitochondrial percentage\n', sum(sc$percent_mito >= 20)))
-
-    
-    # Normalization and scaling
-    sc <- subset(sc, cells = WhichCells(sc, expression = percent_mito < 20))
-    
-    return(sc)
-}
-
 # Computes scaling factor for RNA composition and library size normalization
 scaling_factor <- function(seuratdata, method = 'manual'){
     if(method == 'manual'){
@@ -106,17 +27,21 @@ scaling_factor <- function(seuratdata, method = 'manual'){
 singleCell_qc <- function(sc_data){
     
     # Outliers check
-    print(FeatureScatter(sc_data, feature1 = 'nFeature_RNA', feature2 = 'nCount_RNA',
-                   group.by = 'cell_type'))
+    p <- FeatureScatter(sc_data, 
+                        feature1 = 'nFeature_RNA', 
+                        feature2 = 'nCount_RNA',
+                        group.by = 'label') +
+        ggtitle('Scatter plot of counts vs number of different genes per cells')
+    print(p)
     
     # Check quality with mitochondrial genes
-    sc <- PercentageFeatureSet(sc_data, "^MT-", col.name = "percent_mito")
+    sc_data <- PercentageFeatureSet(sc_data, "^MT-", col.name = "percent_mito")
     
     # Check quality with ribosomal protein (could also indicate dead cells)
-    sc <- PercentageFeatureSet(sc_data, "^RP[SL]", col.name = "percent_ribo")
+    sc_data <- PercentageFeatureSet(sc_data, "^RP[SL]", col.name = "percent_ribo")
     
     # Check quality with hemoglobin (blood contamination)
-    sc <- PercentageFeatureSet(sc_data, "^HB[^(P)]", col.name = "percent_hb")
+    sc_data <- PercentageFeatureSet(sc_data, "^HB[^(P)]", col.name = "percent_hb")
     
     # Counts per cell, should be > 500 to be usable
     p <- tidyseurat::ggplot(data = sc_data, aes(x = nCount_RNA, color = label, fill = label)) +
@@ -124,7 +49,9 @@ singleCell_qc <- function(sc_data){
         scale_x_log10() +
         theme_classic() + 
         ylab('Cell density') +
-        geom_vline(xintercept = 500)
+        geom_vline(xintercept = 500, color = 'red', size = 1) +
+        ggtitle('Distribution of counts per cell') +
+        theme(plot.title = element_text(size = 20, face = "bold"))
     print(p)
     
     # Gene per cell
@@ -133,25 +60,60 @@ singleCell_qc <- function(sc_data){
         scale_x_log10() +
         theme_classic() + 
         ylab('Cell density') +
-        geom_vline(xintercept = 300)
+        geom_vline(xintercept = 300, color = 'red', size = 1) +
+        ggtitle('Distribution of number of different genes per cell') +
+        theme(plot.title = element_text(size = 15, face = "bold"))
     print(p)
     
     # Doublet density
     sc_data$doubletScore <- computeDoubletDensity(GetAssayData(sc_data))
-    boxplot(sc_data$doubletScore, xlab = '', ylab = 'Doublet density score') +
-        abline(h = quantile(sc_data$doubletScore, 0.95), col = 'red', lwd = 1) +
-        legend('95th percentile of data')
+    p <- tidyseurat::ggplot(data = sc_data, aes(x = doubletScore, color = label, fill = label)) +
+        geom_density(alpha = 0.2) +
+        scale_x_log10() +
+        theme_classic() +
+        ylab('Cell density') +
+        geom_vline(xintercept = quantile(sc_data$doubletScore, 0.95), color = 'red', size = 1) +
+        ggtitle('Detection of doublet through scDblFinder') +
+        theme(plot.title = element_text(size = 20, face = "bold"))
+   print(p)
     
-    p <- VlnPlot(sc_data, features = c('nCount_RNA', 'nFeature_RNA' ,'percent_mito', 'percent_ribo', 'percent_hb'),
-            group.by = 'cell_type')
+    p <- VlnPlot(sc_data, features = c('percent_mito', 'percent_ribo', 'percent_hb'),
+            group.by = 'label') +
+            #ggtitle('Violin plots of mitochondrial, ribosomal and hemoglobin genes fraction of total genes') +
+        theme(plot.title = element_text(size = 10, face = "bold"))
     print(p)
     
     # Transcript capture efficiency
-    p <- smoothScatter(log2(rowSums(GetAssayData(sc_data)) + 1), 
-                  rowSums(GetAssayData(sc) > 0)/ncol(GetAssayData(sc)),
-                  pch = 19, col = "red", ylab = 'Detection probability',
-                  xlab = 'Total cell count')
+    df <- data.frame(x = log2(rowSums(GetAssayData(sc_data)) + 1),
+                     y = rowSums(GetAssayData(sc_data) > 0) / ncol(GetAssayData(sc_data)))
+    p <- ggplot(data = df, aes(x = x, y = y)) +
+        geom_point(color='darkred') +
+        geom_smooth() +
+        ylab('Fraction of cells with detected gene') +
+        xlab('Total logcounts per gene') +
+        scale_x_log10() +
+        ggtitle('Capture efficiency') +
+        theme(plot.title = element_text(size = 20, face = "bold"))
     print(p)
+    return (sc_data)
+}
+
+
+# Filtering of single cells according to parameter found in singleCell_qc
+singleCell_filtering <- function(sc_data, 
+                                 doublet.percentile = 0.95,
+                                 min.gene.per.cell = 300,
+                                 min.count.per.cell = 500,
+                                 min.ribo.percent = 0,
+                                 max.mito.percent = 2){
+    
+    print(paste0('Dimension of data prior to filtering: ', dim(sc_data)))
+    sc_data <- subset(sc_data, subset = (percent_mito < max.mito.percent) &
+                          (nFeature_RNA > min.gene.per.cell) &
+                          (nCount_RNA > min.count.per.cell) & 
+                          (doubletScore > quantile(doubletScore, doublet.percentile)))
+    print(paste0('Dimension of data after filtering: ', dim(sc_data)))
+    return(sc_data)
 }
 
 

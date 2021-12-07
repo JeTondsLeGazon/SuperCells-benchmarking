@@ -2,7 +2,7 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
-setwd('SuperCells-benchmarking/')
+#setwd(paste0(getwd(), '/SuperCells-benchmarking'))
 
 library(Seurat)
 library(dplyr)
@@ -18,6 +18,7 @@ library(ggpubr)
 library(ggrepel)
 library(stringr)
 library(tidyseurat)
+library(ggExtra)
 
 source('utility.R')
 source('supercells.R')

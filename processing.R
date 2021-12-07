@@ -93,7 +93,8 @@ singleCell_qc <- function(sc_data){
         xlab('Total logcounts per gene') +
         scale_x_log10() +
         ggtitle('Capture efficiency') +
-        theme(plot.title = element_text(size = 20, face = "bold"))
+        theme(plot.title = element_text(size = 20, face = "bold")) +
+        ggMarginal(margins = 'x', color="darkred", fill = 'darkred', alpha = 0.2, size=4)
     print(p)
     return (sc_data)
 }
@@ -101,18 +102,24 @@ singleCell_qc <- function(sc_data){
 
 # Filtering of single cells according to parameter found in singleCell_qc
 singleCell_filtering <- function(sc_data, 
-                                 doublet.percentile = 0.95,
+                                 max.doublet.percentile = 0.95,
                                  min.gene.per.cell = 300,
                                  min.count.per.cell = 500,
+                                 min.count.per.genes = 1000,
                                  min.ribo.percent = 0,
-                                 max.mito.percent = 2){
+                                 max.mito.percent = 20){
     
-    print(paste0('Dimension of data prior to filtering: ', dim(sc_data)))
-    sc_data <- subset(sc_data, subset = (percent_mito < max.mito.percent) &
+    cat('Dimensions prior to filtering: ')
+    cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\n'))
+    genes.use <- rownames(GetAssayData(sc_data))[rowSums(GetAssayData(sc_data)) > min.count.per.genes]
+    sc_data <- subset(sc_data, 
+                      subset = (percent_mito < max.mito.percent) &
                           (nFeature_RNA > min.gene.per.cell) &
                           (nCount_RNA > min.count.per.cell) & 
-                          (doubletScore > quantile(doubletScore, doublet.percentile)))
-    print(paste0('Dimension of data after filtering: ', dim(sc_data)))
+                          (doubletScore < quantile(doubletScore, max.doublet.percentile)),
+                      features = genes.use)
+    cat('Dimensions after filtering: ')
+    cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\ns'))
     return(sc_data)
 }
 

@@ -133,7 +133,7 @@ singleCell_filtering <- function(sc_data,
 
 # Normalization for single cell data based on either seurat normalization or manual
 # log-norm from DESeq2
-NormalizeObject <- function(data, method = 'DESeq2'){
+NormalizeObject <- function(data, method = 'DESeq2', scaling.method = 'manual'){
     normalized_data <- data
     if (method == 'DESeq2'){
         norm_factors <- scaling_factor(data, 'else')
@@ -215,18 +215,20 @@ reIdent <- function(sc, initial_centers = NULL, labels  = NULL){
     clustering <- kmeans(Embeddings(sc, reduction = 'umap'), 
                          centers = initial_centers, 
                          iter.max = 10, nstart = 1)
-    Idents(sc) <- clustering$cluster
-    
+    sc$label <- clustering$cluster
     
     sorted_sizes <- clustering$withinss
-    new.idents <- c(as.character(which(clustering$withinss == sorted_sizes[1])),
-                    as.character(which(clustering$withinss == sorted_sizes[2])),
-                    as.character(which(clustering$withinss == sorted_sizes[3])),
-                    as.character(which(clustering$withinss == sorted_sizes[4])))
+    new.idents <- c()
+    for(i in seq_along(labels)){
+        new.idents <- c(new.idents, 
+                        as.character(which(clustering$withinss == sorted_sizes[i])))
+    }
     new.idents.labels <- labels
 
     names(new.idents.labels) <- new.idents
-    sc <- RenameIdents(sc, new.idents.labels)
+    sc$label <- new.idents.labels[sc$label]
+    sc <- subset(sc, subset = label %in% labels)
+    Idents(sc) <- 'label'
     print(DimPlot(sc, reduction = 'umap'))
     return(sc)
 }

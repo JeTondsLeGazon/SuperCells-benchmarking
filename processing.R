@@ -209,8 +209,15 @@ sub_cluster <- function(singleCell_data){
 
 # Change identification of cells based on clustering / analysis
 reIdent <- function(sc, initial_centers = NULL, labels  = NULL){
-    if(is.null(initial_centers) | is.null(labels)){
-        return
+    if(is.null(initial_centers) & is.null(labels)){
+        return(sc)
+    }
+    if(is.null(initial_centers)){
+        new.labels <- labels
+        names(new.labels) <- unique(Idents(sc))
+        sc <- RenameIdents(sc, new.labels)
+        print(DimPlot(sc, reduction = 'umap'))
+        return(sc)
     }
     clustering <- kmeans(Embeddings(sc, reduction = 'umap'), 
                          centers = initial_centers, 

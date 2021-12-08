@@ -23,7 +23,7 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
         res <- append(res, as.integer(sum(!is.na(match(set1[1:i], set2[1:i])))))
     }
     max_s <- k * (k+1) / 2
-    return(list(sum(res)/max_s, res))
+    return(sum(res)/max_s)
 }
 
 compute_aucc <- function(set1,
@@ -183,20 +183,23 @@ display_significant_genes <- function(seurat_obj,  # seurat object with data
 }
 
 
-plot_score_results <- function(scores, which.score = 'AUCC'){
-    test_cols <- colnames(scores)[!colnames(scores) %in% c('gammas')]
-    row.names(scores) <- scores$gammas
-    s <- melt(scores, measure.vars = test_cols)
-    
-    p <- ggplot(data = s, aes(x = gammas, y = value, col = variable)) +
-            geom_line() +
-            geom_point(aes(col = variable), size = 3) +
-            xlab('Graining levels of SuperCells') +
-            ylab(sprintf('%s score vs ground truth (bulk RNA)', which.score)) +
-            ggtitle('Concordance scores between ground truth (bulk RNA) from multiple statistical tests
-            and SuperCells DE analysis results at different graining levels') +
-            theme(plot.title = element_text(hjust = 0.5))
-    print(p)
+plot_score_results <- function(scores){
+   df <- data.frame(scores)
+   labels <- sapply(unique(df$L1), function(x) paste0('Top n = ', x))
+   ggplot(data = df, aes(x = as.factor(gammas), 
+                         y = value, 
+                         label = as.factor(gammas),
+                         fill = log(gammas))) +
+       geom_bar(stat = 'identity', alpha = 0.5) +
+       facet_wrap(~as.numeric(L1), labeller = labeller(labels)) +
+       xlab('Graining level') +
+       ylab('AUCC score') +
+       ylim(c(0, 1)) +
+       ggtitle('AUCC score between superCell and Ground truth for top 10, 50 and 100 Genes') +
+       theme(legend.position = "none",
+             axis.title.y = element_text(size=14, face="bold"),
+             axis.title.x = element_text(size=14, face="bold"),
+             plot.title = element_text(hjust = 0.5, size = 15, face = 'bold'))
 }
 
 

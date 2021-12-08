@@ -54,7 +54,10 @@ Idents(sc_data) <- 'label'
 # Effects of normalization:
 # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1
 sc_data <- singleCell_qc(sc_data)
-sc_filtered_data <- singleCell_filtering(sc_data, max.ribo.percent = 55)
+sc_filtered_data <- singleCell_filtering(sc_data, 
+                                         max.ribo.percent = 55)#,
+                                         #min.gene.per.cell = 300,
+                                         #min.count.per.cell = 400)
 bulk_filtered_data <- bulk_qc_and_filtering(bulk_data)
 
 
@@ -73,7 +76,7 @@ bulk_filtered_data <- bulk_filtered_data[use_genes, ]
 # Normalization
 # ---------------------------------------------------------
 # Only on single cell data as bulk data should be used with raw counts
-sc_normalized_data <- NormalizeObject(sc_filtered_data)
+sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
 
 
 # ---------------------------------------------------------
@@ -87,10 +90,10 @@ sc_clustered_data <- sub_cluster(sc_normalized_data)
 # mouse-lps : matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
 # pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
 # rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
-centers <- matrix(c(-7, -5, 5, 7, 5, -7, -7, 3), ncol = 2)
+centers <- matrix(c(-5, 7, -5, 7, -5, -2, 7, 10), ncol = 2)
 sc_clustered_data <- reIdent(sc_clustered_data, 
                              initial_centers = centers, 
-                             labels = c('treat_grp1', 'treat_grp2', 'ctrl_grp2', 'ctrl_grp1'))
+                             labels = c('treat_grp1', 'ctrl_grp1'))
 
 
 # bulk data plot
@@ -160,14 +163,15 @@ single_markers <- single_markers %>%
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-#which.score = 'match'
-#score_results <- compute_total_score(super_markers, single_markers, which.score)
-#plot_score_results(score_results, which.score)
+score_results <- compute_score(super_markers, bulk_markers$`DESeq2-Wald`, which.score) %>%
+    melt %>%
+    mutate(gammas = rep(gammas, 3))
+plot_score_results(score_results)
 
 match_scores <- data.frame(
     super_vs_single = unlist(lapply(super_markers, function(x) gene_match(x$gene, single_markers$gene))),
-    super_vs_bulk = unlist(lapply(super_markers, function(x) gene_match(x$gene, bulk_markers$`DESeq2-Wald`$gene))),
-    single_vs_bulk = c(gene_match(single_markers$gene, bulk_markers$`DESeq2-Wald`$gene), rep(NA, 4)),
+    super_vs_bulk = unlist(lapply(super_markers, function(x) gene_match(x$gene, bulk_markers$`edgeR-QLF`$gene))),
+    single_vs_bulk = c(gene_match(single_markers$gene, bulk_markers$`edgeR-QLF`$gene), rep(NA, 4)),
     gammas = gammas)
 
 ggplot(data = match_scores, aes(x = gammas)) +
@@ -209,7 +213,7 @@ annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs sin
                                      face = 'bold', size = 14))
 
 # Show log FC are different between bulk and single cells -> hence difference
-p1 <- LogFcLogFcPlot(single_markers, bulk_markers$`DESeq2-Wald`) + 
+p1 <- LogFcLogFcPlot(single_markers, bulk_markers$`edgeR-QLF`) + 
     xlab('LogFC single cells (seurat)') +
     ylab('LogFC bulk (DESeq2 Wald)')
 p2 <- LogFcLogFcPlot(bulk_markers$`edgeR-QLF`, bulk_markers$`DESeq2-Wald`) +
@@ -266,3 +270,35 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # ---------------------------------------------------------
 concerned_genes <- single_markers$gene[1:100]
 rank_plot(concerned_genes, single_markers, super_markers)
+
+common.genes <- intersect(super_markers$`1`$gene, super_markers$`50`$gene)
+df <- data.frame(p1 = super_markers$`1`[common.genes, 'adj.p.value'],
+                 p50 = super_markers$`50`[common.genes, 'adj.p.value'],
+                 std1 = super_markers$`1`[common.genes, 'std.err'],
+                 std50 = super_markers$`50`[common.genes, 'std.err'],
+                 df1 = super_markers$`1`[common.genes, 'df'],
+                 df50 = super_markers$`50`[common.genes, 'df'],
+                 t1 = super_markers$`1`[common.genes, 't.value'],
+                 t50 = super_markers$`50`[common.genes, 't.value'],
+                 top100 = common.genes %in% concerned_genes)
+p1 <- ggplot(data = df, aes(x = -log10(p1), y = -log10(p50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('-log10 p gamma = 50') +
+        xlab('-log10 p gamma = 1')
+p2 <- ggplot(data = df, aes(x = std1, y = std50, color = top100)) +
+    geom_point() +
+    geom_smooth() +
+    ylab('std err gamma = 50') +
+    xlab('std err gamma = 1')
+p3 <- ggplot(data = df, aes(x = as.numeric(df1), y = as.numeric(df50), color = top100)) +
+    geom_point() +
+    geom_smooth() +
+    ylab('df gamma = 50') +
+    xlab('df gamma = 1')
+p4 <- ggplot(data = df, aes(x = as.numeric(t1), y = as.numeric(t50), color = top100)) +
+    geom_point() +
+    geom_smooth() +
+    ylab('t gamma = 50') +
+    xlab('t gamma = 1')
+ggarrange(p1, p2, p3, p4, nrow = 2, ncol = 2)

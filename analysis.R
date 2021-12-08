@@ -100,9 +100,9 @@ singleCell_DE <- function(sc_data, var.features){
 # Computes the match between the topn genes between two sets, normalized [0, 1]
 gene_match <- function(set1, set2, topn = 100){
     
-    assert('topn should be a positive non-null integer', topn > 0)
-    assert('Size of set1 should be equal or greater than topn', length(set1) >= topn)
-    assert('Size of set2 should be equal or greater than topn', length(set2) >= topn)
+    if(topn > min(length(set1), length(set2))){
+        topn <- min(length(set1), length(set2))
+    }
     
     sum(!is.na(match(set1[1:topn], set2[1:topn]))) / topn
 }
@@ -113,43 +113,16 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
                           GT,  # Ground truth for comparison with supercells
                           which.score = 'aucc')  # type of score to compute
 {
-    max_param <- 100
-    if (which.score == 'aucc'){
-        k <- min(c(unlist(lapply(DEAs, function(x) nrow(x))), nrow(GT)))
-        if (k > max_param){
-            k <- max_param
-            print(sprintf('Parameter k set to %s', k))
-        }
-        scores <- lapply(DEAs, function(x) aucc(x$gene, GT$gene, k)[[1]])
-    }else if(which.score == 'match'){
-        topn <- min(c(unlist(lapply(DEAs, function(x) nrow(x))), nrow(GT)))
-        if (topn > max_param){
-            topn <- max_param
-            print(sprintf('Parameter topn set to %s', topn))
-        }
-        scores <- lapply(DEAs, function(x) gene_match(x$gene, GT$gene, topn))
+    max.k <- min(sapply(DEAs, nrow))
+    if(max.k > 100){
+        ks <- c(10, 50, 100)
+    }else{
+        ks <- c(round(max.k / 4, 0), round(max.k / 2, 0), max.k)
     }
+        scores <- lapply(ks, function(k) sapply(DEAs, function(x) aucc(x$gene, GT$gene, k)))
+        names(scores) <- ks
     return(scores)
 }
-
-
-# Compute concordance score between super cells DEA at different graining levels and another set of DEAs (Ground truths)
-compute_total_score <- function(DEAs,  # list containing the results of DEA from supercells
-                                GT,  # Ground truths from different tests
-                                which.score = 'aucc',  # type of score to compute
-                                per_cluster = F)
-{
-    if(per_cluster){
-        lapply(GT, function(x) unlist(compute_cluster_score(DEAs, x, which.score))) %>%
-            data.frame() %>%
-            mutate(gammas = as.numeric(row.names(.)))
-    }
-    
-    lapply(GT, function(x) unlist(compute_score(DEAs, x, which.score))) %>%
-        data.frame() %>%
-        mutate(gammas = as.numeric(row.names(.)))
-}
-
 
 
 # Manual computation of logFC and t-test for bulk data

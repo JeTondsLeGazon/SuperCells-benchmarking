@@ -35,14 +35,13 @@ compute_DE_bulk <- function(data, meta){
     dds <- DESeqDataSetFromMatrix(GetAssayData(data), 
                            colData = data@meta.data, 
                            design = ~ label)
-    #dds_lrt <- DESeq(dds, test = 'LRT', minReplicatesForReplace = Inf, 
-    #                 reduced = ~1)
+
     dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
     
-    #results_lrt <- results(dds_lrt) %>%
-    #                process_table(log_fc_name = 'log2FoldChange', padj_name = 'padj')
     
-    results_wald <- results(dds_wald, contrast = c('label', levels(data)[1], levels(data)[2])) %>%
+    group.id <- grep('[Uu][Nn][Ss][Tt]|[Cc][Tt][Rr][Ll]', levels(data))
+    
+    results_wald <- results(dds_wald, contrast = c('label', levels(data)[c(2, 1)[group.id]], levels(data)[group.id])) %>%
                     process_table(log_fc_name = 'log2FoldChange', padj_name = 'padj')
     
     # edgeR approach
@@ -54,8 +53,10 @@ compute_DE_bulk <- function(data, meta){
     # Quasi likelihood test
     fit <- glmQLFit(edge, model)
     qlf <- glmQLFTest(fit,coef= 2)$table %>%
-        process_table(log_fc_name = 'logFC', padj_name = 'PValue') 
-    qlf$logFC <- -(qlf$logFC)  # because does not know how to reverse log ...
+        process_table(log_fc_name = 'logFC', padj_name = 'PValue')
+    if(group.id == 2){
+        qlf$logFC <- -(qlf$logFC)  # because does not know how to reverse log ...
+    }
     
     
     return(list('DESeq2-Wald' = results_wald,

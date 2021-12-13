@@ -92,29 +92,7 @@ sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
 # ---------------------------------------------------------
 # Pseudo bulk creation
 # ---------------------------------------------------------
-rename_sample <- function(data, new){
-    old <- unique(data$sample)
-    data$sample <- new[match(data$sample, old)]
-    data
-}
 
-
-create_pseudobulk <- function(data){
-    counts <- as.matrix(GetAssayData(data))
-    sample.id <- sort(unique(data$sample))
-    gene.names <- rownames(data)
-    bulk <- lapply(sample.id, 
-                   function(id) rowSums(counts[, which(data$sample == id)]))
-    df <- data.frame(matrix(unlist(bulk), byrow = T, ncol = length(sample.id)), 
-               row.names = gene.names)
-    colnames(df) <- sample.id
-    meta <- data.frame(row.names = sample.id, 
-                       label = c('ctrl', 'treat')[as.numeric(sapply(sample.id, function(x) grepl('treat', x))) + 1],
-                       replicate = rep(c(1, 2, 3), 2))
-    sc <- CreateSeuratObject(df, meta.data = meta)
-    Idents(sc) <- 'label'
-    return(sc)
-}
 
 pseudobulk_data <- create_pseudobulk(rename_sample(sc_filtered_data, 
                                                    c('treat1', 'ctrl1', 'treat2', 'ctrl2', 'treat3', 'ctrl3')))
@@ -135,7 +113,7 @@ sc_clustered_data <- sub_cluster(sc_normalized_data)
 # rabbit-lps: matrix(c(7, -5, 7, -5, -5, -5, 7, 7), ncol = 2)
 centers <- matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
 sc_clustered_data <- reIdent(sc_clustered_data, 
-                             initial_centers = centers, 
+                             initial_centers = NULL, 
                              labels = c('treat_grp1', 'ctrl_grp1'))
 
 
@@ -176,31 +154,62 @@ manual_bulk_markers <- find_markers_bulk(bulk_filtered_data) %>%
 
 
 # ---------------------------------------------------------
-# DE pseudobulk
+# DE pseudobulk Seurat
 # ---------------------------------------------------------
-pseudo_markers <- pseudobulk_norm %>% 
+pseudo_markers <- pseudobulk_data %>% 
                     FindVariableFeatures(nfeatures = 500) %>%
-                    FindMarkers(ident.1 = 'ctrl',
-                                ident.2 = 'treat',
+                    FindMarkers(ident.1 = 'treat',
+                                ident.2 = 'ctrl',
                                 only.pos = T, 
                                 logfc.threshold = 0, 
-                                test.use = 't') %>%
+                                test.use = 'DESeq2') %>%
     mutate(gene = rownames(.)) %>%
-    dplyr::rename(ajd.p.value = p_val_adj, logFC = avg_log2FC) %>%
-    arrange(ajd.p.value, 1 / (abs(logFC) + 1), T)
+    dplyr::rename(adj.p.value = p_val_adj, logFC = avg_log2FC) %>%
+    arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
+    subset(logFC > 0 & adj.p.value < 0.05)
 
 
 # ---------------------------------------------------------
-# DE pseudobulk
+# DE pseudobulk DESeq2
 # ---------------------------------------------------------
+pseudo_markers2 <- compute_DE_bulk(pseudobulk_data)
+volcano_plot(pseudo_markers2$`edgeR-QLF`) +
+    ggtitle('Volcano plot of pseudo bulk data from DESeq2 (wald)') +
+    theme(plot.title = element_text(hjust = 0.5))
+
+pseudo_markers2 <- lapply(pseudo_markers2, function(x) subset(x, adj.p.value < 0.05 & logFC > 0))
+pseudo_markers2 <- lapply(pseudo_markers2, function(x) if(nrow(x) == 0){x <- NULL}else{x})
+pseudo_markers2 <- pseudo_markers2[!unlist(lapply(pseudo_markers2, is.null))]
+
+
+# ---------------------------------------------------------
+# DE pseudobulk manual
+# ---------------------------------------------------------
+half.id <- ncol(pseudobulk_norm) / 2
+pseudo_markers_manual <- lapply(1:nrow(pseudobulk_norm), 
+                  function(i) unlist(t.test(x = GetAssayData(pseudobulk_norm)[i, (half.id + 1) : ncol(pseudobulk_norm)],
+                              y = GetAssayData(pseudobulk_norm)[i, 1: half.id])))
+pseudo_markers_manual <- data.frame(matrix(unlist(pseudo_markers_manual), ncol = 12, byrow = T)[, c(1, 2, 3, 9)], 
+                                    row.names = rownames(pseudobulk_norm))
+colnames(pseudo_markers_manual) <- c('t', 'df', 'p.value', 'std.err')
+pseudo_markers_manual$adj.p.value <- p.adjust(pseudo_markers_manual$p.value, method = 'BH')
+pseudo_markers_manual$logFC <- log(rowSums(expm1(GetAssayData(pseudobulk_norm)[ , (half.id + 1) : ncol(pseudobulk_norm)])) / rowSums(expm1(GetAssayData(pseudobulk_norm)[ , 1 : half.id])))
+pseudo_markers_manual <- pseudo_markers_manual %>%
+    mutate(gene = rownames(.)) %>%
+    arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
+    subset(logFC > 0 & adj.p.value < 0.05)
+
 
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
-
-gammas <- c(1, 2, 5, 10, 50, 100, 200)
+gammax <- ncol(sc_clustered_data) / length(unique(Idents(sc_clustered_data))) / 3
+if(gammax > 1000){
+    gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000)
+}else{
+    gammas <- c(1, 2, 5, 10, 50, 100, 200)
+}
 memory.limit(size=56000)
-
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5)
 
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
@@ -232,33 +241,18 @@ score_results <- compute_score(super_markers, manual_bulk_markers, which.score) 
     mutate(gammas = rep(gammas, 3))
 plot_score_results(score_results)
 
-gt <- manual_bulk_markers
-gt2 <- bulk_markers$`DESeq2-Wald`
-match_scores <- data.frame(
-    super_vs_single = unlist(lapply(super_markers, function(x) gene_match(x$gene, single_markers$gene))),
-    super_vs_bulk = unlist(lapply(super_markers, function(x) gene_match(x$gene, gt$gene))),
-    single_vs_bulk = c(gene_match(single_markers$gene, gt$gene), rep(NA, length(gammas)-1)),
-    bulk_vs_bulk = c(gene_match(bulk_markers$`DESeq2-Wald`$gene, manual_bulk_markers$gene), rep(NA, length(gammas)-1)),
-    super_vs_bulk2 = unlist(lapply(super_markers, function(x) gene_match(x$gene, gt2$gene))),
-    
-    gammas = gammas)
 
-plot(gammas, match_scores$super_vs_single, type = 'b', 
-     ylim = c(0, 1), col = 'blue', pch = 19, log = 'x')
-lines(gammas, match_scores$super_vs_bulk, col = 'red')
-points(gammas, match_scores$super_vs_bulk, col = 'red', pch = 19)
-
-lines(gammas, match_scores$super_vs_bulk2, col = 'orange')
-points(gammas, match_scores$super_vs_bulk2, col = 'orange', pch = 19)
-points(gammas, match_scores$single_vs_bulk, col = 'green', pch=19)
-points(gammas, match_scores$bulk_vs_bulk, col = 'black', pch=19)
-legend('topright', legend = c('SuperCells (t-test) vs single cells (t-test)', 
-                     'SuperCells (t-test) vs Bulk (t-test)',
-                     'SuperCells (t-test) vs Bulk (DESeq2)',
-                     'Single cells (t-test) vs Bulk (t-test)',
-                     'Bulk (DESeq2) vs Bulk (t-test)'),
-       col = c('blue', 'red', 'orange', 'green', 'black'), pch = 19)
-grid()
+plot_matches(super_markers, 
+             list(single = single_markers, 
+               bulk_man = manual_bulk_markers, 
+               bulk_des = bulk_markers$`DESeq2-Wald`,
+               pseudo_des = pseudo_markers2$`DESeq2-Wald`,
+               pseudo_man = pseudo_markers_manual ),
+             c('SuperCells (t-test) vs single cells (t-test seurat)', 
+               'SuperCells (t-test) vs Bulk (manual t-test)',
+               'SuperCells (t-test) vs Bulk (DESeq2)',
+               'SuperCells (t-test) vs pseudo-bulk (DESeq2)',
+               'SuperCells (t-test) vs pseudo-bulk (manual t test)'))
 
 # ---------------------------------------------------------
 # Stats comparison
@@ -392,7 +386,7 @@ p6 <- ggplot(data = df, aes(x = as.numeric(m2.1), y = as.numeric(m2.50), color =
 ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
 
 # ---------------------------------------------------------
-# Weighted vs unweighted
+# Weighted vs unweighted (should uncomment lines in super_DE)
 # ---------------------------------------------------------
 l <- nrow(super_markers$`1`)
 df <- data.frame(p1 = super_markers$`1`$adj.p.value[1:l],

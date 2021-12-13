@@ -337,3 +337,32 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
     p4 <- subplot(rank1, rank5, 10)
     ggarrange(p1, p2, p3, p4)
 }
+
+
+# Check percentage of matching top n DE genes between supercells and other DEs
+plot_matches <- function(supercell_res, others, legends = NULL){
+    gammas <- as.numeric(names(supercell_res))
+    plot(NULL, ylim=c(0,1), xlim=c(min(gammas), max(gammas)), 
+         ylab="Match scores", xlab="Gammas", log = 'x')    
+    for (i in seq_along(others)){
+        matching <- unlist(lapply(supercell_res, function(x) gene_match(x$gene, others[[i]]$gene)))
+        points(gammas, matching, col = i, pch = 19)
+        lines(gammas, matching, col = i)
+    }
+    legend('topright', 
+           legend = legends, col = seq_along(others), pch = 19)
+    grid()
+
+    scores <- c()
+    names <- c()
+    for (i in seq_along(others)){
+        for(j in seq_len(length(others) - i)){
+            matching <- gene_match(others[[i]]$gene, others[[j + i]]$gene)
+            scores <- c(scores, matching)
+            names <- c(names, paste0(names(others)[i], '_vs_', names(others)[j + i]))
+        }
+    }
+    p <- barplot(scores, las=2, ylim = c(0,1))
+    text(x = p, y = scores + 0.17, labels = names, srt = 90)
+    print(p)
+}

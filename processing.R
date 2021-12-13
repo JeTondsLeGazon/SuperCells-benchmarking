@@ -239,3 +239,30 @@ reIdent <- function(sc, initial_centers = NULL, labels  = NULL){
     print(DimPlot(sc, reduction = 'umap'))
     return(sc)
 }
+
+
+# Rename samples according to new vector, careful as no check is done
+rename_sample <- function(data, new){
+    old <- unique(data$sample)
+    data$sample <- new[match(data$sample, old)]
+    data
+}
+
+
+# Create pseudobulk from seurat data, expect samples to have treat in their name
+create_pseudobulk <- function(data){
+    counts <- as.matrix(GetAssayData(data))
+    sample.id <- sort(unique(data$sample))
+    gene.names <- rownames(data)
+    bulk <- lapply(sample.id, 
+                   function(id) rowSums(counts[, which(data$sample == id)]))
+    df <- data.frame(matrix(unlist(bulk), byrow = F, ncol = length(sample.id)), 
+                     row.names = gene.names)
+    colnames(df) <- sample.id
+    meta <- data.frame(row.names = sample.id, 
+                       label = c('ctrl', 'treat')[as.numeric(sapply(sample.id, function(x) grepl('treat', x))) + 1],
+                       replicate = rep(c(seq_len(length(sample.id)/2)), 2))
+    sc <- CreateSeuratObject(df, meta.data = meta)
+    Idents(sc) <- 'label'
+    return(sc)
+}

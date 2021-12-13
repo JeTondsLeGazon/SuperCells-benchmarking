@@ -19,11 +19,21 @@ library(ggrepel)
 library(stringr)
 library(tidyseurat)
 library(ggExtra)
+library(weights)
+library(d)
+
 
 source('utility.R')
 source('supercells.R')
 source('analysis.R')
 source('processing.R')
+#source('redefined_functions.R')
+
+# Redefine wtd.t.test to get smaller p-values
+#tmpfun <- get("wtd.t.test", envir = asNamespace("weights"))
+#environment(custom.wtd.t.test) <- environment(tmpfun)
+#attributes(custom.wtd.t.test) <- attributes(tmpfun)  # don't know if this is really needed
+#assignInNamespace("wtd.t.test", custom.wtd.t.test, ns = "weights")
 
 # ---------------------------------------------------------
 # Data loading
@@ -47,7 +57,7 @@ Idents(bulk_data) <- bulk_raw$meta$label
 bulk_data$label <- Idents(bulk_data)
 
 Idents(sc_data) <- 'label'
-
+set.seed(0)
 # ---------------------------------------------------------
 # QC and filtering
 # ---------------------------------------------------------
@@ -80,6 +90,38 @@ sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
 
 
 # ---------------------------------------------------------
+# Pseudo bulk creation
+# ---------------------------------------------------------
+rename_sample <- function(data, new){
+    old <- unique(data$sample)
+    data$sample <- new[match(data$sample, old)]
+    data
+}
+
+
+create_pseudobulk <- function(data){
+    counts <- as.matrix(GetAssayData(data))
+    sample.id <- sort(unique(data$sample))
+    gene.names <- rownames(data)
+    bulk <- lapply(sample.id, 
+                   function(id) rowSums(counts[, which(data$sample == id)]))
+    df <- data.frame(matrix(unlist(bulk), byrow = T, ncol = length(sample.id)), 
+               row.names = gene.names)
+    colnames(df) <- sample.id
+    meta <- data.frame(row.names = sample.id, 
+                       label = c('ctrl', 'treat')[as.numeric(sapply(sample.id, function(x) grepl('treat', x))) + 1],
+                       replicate = rep(c(1, 2, 3), 2))
+    sc <- CreateSeuratObject(df, meta.data = meta)
+    Idents(sc) <- 'label'
+    return(sc)
+}
+
+pseudobulk_data <- create_pseudobulk(rename_sample(sc_filtered_data, 
+                                                   c('treat1', 'ctrl1', 'treat2', 'ctrl2', 'treat3', 'ctrl3')))
+pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = 'else')
+
+
+# ---------------------------------------------------------
 # Clustering of single cells
 # ---------------------------------------------------------
 # Subgroups may appear in the single cell data, which should be clustered to
@@ -87,10 +129,11 @@ sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
 sc_clustered_data <- sub_cluster(sc_normalized_data)
 # ------------------------------------------------------------------------------
 # CanoGamez2020_memory-Th17: matrix(c(-10, 10, -2, 2), ncol = 2)
-# mouse-lps : matrix(c(-5, -5, 7, 7, -5, 10, 10, 0), ncol = 2)
+# mouse-lps : matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
 # pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
 # rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
-centers <- matrix(c(-5, 7, -5, 7, -5, -2, 7, 10), ncol = 2)
+# rabbit-lps: matrix(c(7, -5, 7, -5, -5, -5, 7, 7), ncol = 2)
+centers <- matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
 sc_clustered_data <- reIdent(sc_clustered_data, 
                              initial_centers = centers, 
                              labels = c('treat_grp1', 'ctrl_grp1'))
@@ -113,13 +156,14 @@ print(plot2)
 # ---------------------------------------------------------
 
 bulk_markers <- compute_DE_bulk(bulk_filtered_data)
-volcano_plot(bulk_markers$`DESeq2-Wald`) +
+volcano_plot(bulk_markers$`edgeR-QLF`) +
     ggtitle('Volcano plot of bulk data from DESeq2 (wald)') +
     theme(plot.title = element_text(hjust = 0.5))
 
 bulk_markers <- lapply(bulk_markers, function(x) subset(x, adj.p.value < 0.05 & logFC > 0))
 bulk_markers <- lapply(bulk_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
 bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
+
 
 # ---------------------------------------------------------
 # DE bulk manual
@@ -130,11 +174,31 @@ manual_bulk_markers <- find_markers_bulk(bulk_filtered_data) %>%
     mutate(gene = row.names(.)) %>%
     subset(adj.p.value < 0.05 & logFC > 0) 
 
+
+# ---------------------------------------------------------
+# DE pseudobulk
+# ---------------------------------------------------------
+pseudo_markers <- pseudobulk_norm %>% 
+                    FindVariableFeatures(nfeatures = 500) %>%
+                    FindMarkers(ident.1 = 'ctrl',
+                                ident.2 = 'treat',
+                                only.pos = T, 
+                                logfc.threshold = 0, 
+                                test.use = 't') %>%
+    mutate(gene = rownames(.)) %>%
+    dplyr::rename(ajd.p.value = p_val_adj, logFC = avg_log2FC) %>%
+    arrange(ajd.p.value, 1 / (abs(logFC) + 1), T)
+
+
+# ---------------------------------------------------------
+# DE pseudobulk
+# ---------------------------------------------------------
+
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
 
-gammas <- c(1, 2, 5, 10, 50)
+gammas <- c(1, 2, 5, 10, 50, 100, 200)
 memory.limit(size=56000)
 
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5)
@@ -163,28 +227,38 @@ single_markers <- single_markers %>%
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-score_results <- compute_score(super_markers, bulk_markers$`DESeq2-Wald`, which.score) %>%
+score_results <- compute_score(super_markers, manual_bulk_markers, which.score) %>%
     melt %>%
     mutate(gammas = rep(gammas, 3))
 plot_score_results(score_results)
 
+gt <- manual_bulk_markers
+gt2 <- bulk_markers$`DESeq2-Wald`
 match_scores <- data.frame(
     super_vs_single = unlist(lapply(super_markers, function(x) gene_match(x$gene, single_markers$gene))),
-    super_vs_bulk = unlist(lapply(super_markers, function(x) gene_match(x$gene, bulk_markers$`edgeR-QLF`$gene))),
-    single_vs_bulk = c(gene_match(single_markers$gene, bulk_markers$`edgeR-QLF`$gene), rep(NA, 4)),
+    super_vs_bulk = unlist(lapply(super_markers, function(x) gene_match(x$gene, gt$gene))),
+    single_vs_bulk = c(gene_match(single_markers$gene, gt$gene), rep(NA, length(gammas)-1)),
+    bulk_vs_bulk = c(gene_match(bulk_markers$`DESeq2-Wald`$gene, manual_bulk_markers$gene), rep(NA, length(gammas)-1)),
+    super_vs_bulk2 = unlist(lapply(super_markers, function(x) gene_match(x$gene, gt2$gene))),
+    
     gammas = gammas)
 
-ggplot(data = match_scores, aes(x = gammas)) +
-    geom_line(aes(y = super_vs_single, color = 'SuperCells vs single cells (Seurat FindAllMarkers)'), size = 1) +
-    geom_line(aes(y = super_vs_bulk, color = 'SuperCells vs bulk (DESeq2 Wald)'), size = 1) +
-    geom_point(aes(y = single_vs_bulk, color = 'Single cells (Seurat FindAllMarkers) vs bulk (DESeq2 Wald)'), size = 4) +
-    geom_point(aes(y = super_vs_single), size = 3, color = '#619CFF') +
-    geom_point(aes(y = super_vs_bulk), size = 3, color = '#00BA38') +
-    scale_x_continuous(trans='log2', breaks = c(1, 2, 5, 10, 50), labels = c(1, 2, 5, 10, 50)) +
-    ylab('Proportion of top 100 gene matching') +
-    xlab('Gammas (logscale)') +
-    ylim(c(0, 1)) +
-    ggtitle('Comparison of top DE genes between single cells, bulk, and Supercells RNA analysis')
+plot(gammas, match_scores$super_vs_single, type = 'b', 
+     ylim = c(0, 1), col = 'blue', pch = 19, log = 'x')
+lines(gammas, match_scores$super_vs_bulk, col = 'red')
+points(gammas, match_scores$super_vs_bulk, col = 'red', pch = 19)
+
+lines(gammas, match_scores$super_vs_bulk2, col = 'orange')
+points(gammas, match_scores$super_vs_bulk2, col = 'orange', pch = 19)
+points(gammas, match_scores$single_vs_bulk, col = 'green', pch=19)
+points(gammas, match_scores$bulk_vs_bulk, col = 'black', pch=19)
+legend('topright', legend = c('SuperCells (t-test) vs single cells (t-test)', 
+                     'SuperCells (t-test) vs Bulk (t-test)',
+                     'SuperCells (t-test) vs Bulk (DESeq2)',
+                     'Single cells (t-test) vs Bulk (t-test)',
+                     'Bulk (DESeq2) vs Bulk (t-test)'),
+       col = c('blue', 'red', 'orange', 'green', 'black'), pch = 19)
+grid()
 
 # ---------------------------------------------------------
 # Stats comparison
@@ -269,7 +343,7 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 # Rank top n genes
 # ---------------------------------------------------------
 concerned_genes <- single_markers$gene[1:100]
-rank_plot(concerned_genes, single_markers, super_markers)
+rank_plot(concerned_genes, bulk_markers$`DESeq2-Wald`, super_markers)
 
 common.genes <- intersect(super_markers$`1`$gene, super_markers$`50`$gene)
 df <- data.frame(p1 = super_markers$`1`[common.genes, 'adj.p.value'],
@@ -280,7 +354,11 @@ df <- data.frame(p1 = super_markers$`1`[common.genes, 'adj.p.value'],
                  df50 = super_markers$`50`[common.genes, 'df'],
                  t1 = super_markers$`1`[common.genes, 't.value'],
                  t50 = super_markers$`50`[common.genes, 't.value'],
-                 top100 = common.genes %in% concerned_genes)
+                 top100 = common.genes %in% concerned_genes,
+                 m1.1 = super_markers$`1`[common.genes, 'w.mean.1'],
+                 m1.50 = super_markers$`50`[common.genes, 'w.mean.1'],
+                 m2.1 = super_markers$`1`[common.genes, 'w.mean.2'],
+                 m2.50 = super_markers$`50`[common.genes, 'w.mean.2'])
 p1 <- ggplot(data = df, aes(x = -log10(p1), y = -log10(p50), color = top100)) +
         geom_point() +
         geom_smooth() +
@@ -301,4 +379,35 @@ p4 <- ggplot(data = df, aes(x = as.numeric(t1), y = as.numeric(t50), color = top
     geom_smooth() +
     ylab('t gamma = 50') +
     xlab('t gamma = 1')
-ggarrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+p5 <- ggplot(data = df, aes(x = as.numeric(m1.1), y = as.numeric(m1.50), color = top100)) +
+    geom_point() +
+    geom_smooth() +
+    ylab('mean 1 gamma = 50') +
+    xlab('mean 1 gamma = 1')
+p6 <- ggplot(data = df, aes(x = as.numeric(m2.1), y = as.numeric(m2.50), color = top100)) +
+    geom_point() +
+    geom_smooth() +
+    ylab('mean 2 gamma = 50') +
+    xlab('mean 2 gamma = 1')
+ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
+
+# ---------------------------------------------------------
+# Weighted vs unweighted
+# ---------------------------------------------------------
+l <- nrow(super_markers$`1`)
+df <- data.frame(p1 = super_markers$`1`$adj.p.value[1:l],
+                 wp1 = super_markers$`1`$weighted_p[1:l],
+                 p2 = super_markers$`2`$adj.p.value[1:l],
+                 wp2 = super_markers$`2`$weighted_p[1:l],
+                 p5 = super_markers$`5`$adj.p.value[1:l],
+                 wp5 = super_markers$`5`$weighted_p[1:l],
+                 p10 = super_markers$`10`$adj.p.value[1:l],
+                 wp10 = super_markers$`10`$weighted_p[1:l])
+
+plot(-log10(df$p1), -log10(df$wp1), col = 'red', lty = 1, type = 'l', lwd = 2,
+     xlab = 'Unweighted -log10(p values)', ylab = 'Weighted -log10(p values)',
+     main = 'P values of t-test vs weighted t-test at different gammas')
+lines(-log10(df$p2),  -log10(df$wp2), col = 'blue', lty = 1, lwd = 2)
+lines(-log10(df$p5),  -log10(df$wp5), col = 'green', lty = 1, lwd = 2)
+lines(-log10(df$p10),  -log10(df$wp10), col = 'black', lty = 1, lwd = 2)
+legend('topright', c('Gamma = 1', 'Gamma = 2', 'Gamma = 5', 'Gamma = 10'))

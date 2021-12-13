@@ -81,7 +81,8 @@ singleCell_DE <- function(sc_data, var.features){
                                ident.1 = levels(sc_data)[group_id_treat],
                                ident.2 = levels(sc_data)[group_id_ctrl],
                                only.pos = F, 
-                               logfc.threshold = 0) %>%
+                               logfc.threshold = 0, 
+                               test.use = 't') %>%
             mutate(gene = rownames(.))
         single_markers <- rbind(single_markers, markers)
     }

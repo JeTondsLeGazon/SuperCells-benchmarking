@@ -195,7 +195,7 @@ plot_score_results <- function(scores){
        xlab('Graining level') +
        ylab('AUCC score') +
        ylim(c(0, 1)) +
-       ggtitle('AUCC score between superCell and Ground truth for top 10, 50 and 100 Genes') +
+       ggtitle(sprintf('AUCC score between superCell and Ground truth for top %s, %s and %s Genes', unique(df$L1)[1], unique(df$L1)[2], unique(df$L1)[3])) +
        theme(legend.position = "none",
              axis.title.y = element_text(size=14, face="bold"),
              axis.title.x = element_text(size=14, face="bold"),

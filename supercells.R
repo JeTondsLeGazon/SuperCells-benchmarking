@@ -46,6 +46,7 @@ superCells_DE <- function(data,  # gene expression matrix counts
                                     only.pos = F,
                                     do.bootstrapping = F) %>%
                 mutate(gene = rownames(.))
+        
         DEs <- rbind(DEs, DE)
     }
     DEs <- DEs %>%

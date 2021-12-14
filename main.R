@@ -2,7 +2,7 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
-setwd(paste0(getwd(), '/SuperCells-benchmarking'))
+#setwd(paste0(getwd(), '/SuperCells-benchmarking'))
 
 library(Seurat)
 library(dplyr)
@@ -20,20 +20,19 @@ library(stringr)
 library(tidyseurat)
 library(ggExtra)
 library(weights)
-library(d)
 
 
 source('utility.R')
 source('supercells.R')
 source('analysis.R')
 source('processing.R')
-#source('redefined_functions.R')
 
-# Redefine wtd.t.test to get smaller p-values
-#tmpfun <- get("wtd.t.test", envir = asNamespace("weights"))
-#environment(custom.wtd.t.test) <- environment(tmpfun)
-#attributes(custom.wtd.t.test) <- attributes(tmpfun)  # don't know if this is really needed
-#assignInNamespace("wtd.t.test", custom.wtd.t.test, ns = "weights")
+
+# ---------------------------------------------------------
+# Meta parameters
+# ---------------------------------------------------------
+filename <- 'Hagai2018_mouse-lps.rds'
+resetData <- F
 
 # ---------------------------------------------------------
 # Data loading
@@ -44,7 +43,6 @@ source('processing.R')
 
 scpath <- '../sc_rnaseq/rds'
 bulkpath <- '../bulk_rnaseq/rds'
-filename <- 'Hagai2018_mouse-lps.rds'
 
 sc_data <- readRDS(file.path(scpath, filename))
 bulk_raw <- readRDS(file.path(bulkpath, filename))
@@ -92,8 +90,6 @@ sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
 # ---------------------------------------------------------
 # Pseudo bulk creation
 # ---------------------------------------------------------
-
-
 pseudobulk_data <- create_pseudobulk(rename_sample(sc_filtered_data, 
                                                    c('treat1', 'ctrl1', 'treat2', 'ctrl2', 'treat3', 'ctrl3')))
 pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = 'else')
@@ -255,13 +251,8 @@ plot_matches(super_markers,
                'SuperCells (t-test) vs pseudo-bulk (manual t test)'))
 
 # ---------------------------------------------------------
-# Stats comparison
+# LogFC - LogFC graphs
 # ---------------------------------------------------------
-
-log.thres <- 1
-log.thres2 <- 1
-gt_coverage_wrapper(subset(single_markers, logFC > log.thres), 
-                    lapply(super_markers, function(x) subset(x, logFC > log.thres2)))
 
 p1 <- LogFcLogFcPlot(single_markers, super_markers$`1`) + 
     ylab('LogFC Super Cells gamma = 1') +
@@ -280,58 +271,6 @@ fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
 annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs single cells', 
                                      face = 'bold', size = 14))
 
-# Show log FC are different between bulk and single cells -> hence difference
-p1 <- LogFcLogFcPlot(single_markers, bulk_markers$`edgeR-QLF`) + 
-    xlab('LogFC single cells (seurat)') +
-    ylab('LogFC bulk (DESeq2 Wald)')
-p2 <- LogFcLogFcPlot(bulk_markers$`edgeR-QLF`, bulk_markers$`DESeq2-Wald`) +
-    xlab('LogFC bulk (edgeR QLF)') +
-    ylab('LogFC bulk (DESeq2 Wald)')
-p3 <- LogFcLogFcPlot(bulk_markers$`DESeq2-Wald`, super_markers$`1`) + 
-    xlab('LogFC bulk (DESeq2 Wald)') +
-    ylab('LogFC Super Cells gamma = 1')
-p4 <- LogFcLogFcPlot(bulk_markers$`DESeq2-Wald`, super_markers$`5`) + 
-    xlab('LogFC bulk (DESeq2 Wald)') +
-    ylab('LogFC Super Cells gamma = 5')
-
-fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for Bulk and single cells', 
-                                     face = 'bold', size = 14))
-
-# ---------------------------------------------------------
-# Analysis pvalue and logFC
-# ---------------------------------------------------------
-selected_genes <- super_markers$`1`$gene[1:1000]
-logFCs <- data.frame(lapply(super_markers, function(x) x[selected_genes, 'logFC']), row.names = selected_genes, check.rows = F)
-colnames(logFCs) <- gammas
-logFCs$diff1_50 <- logFCs[1] - logFCs[5]
-
-#Observe difference between gammas in terms of logFCs -> select those
-target_genes <- rownames(logFCs)[logFCs$diff1_50/logFCs[1] > 0.5]
-
-tmp <- logFCs[target_genes, -6] %>% group_by(gene = rownames(.)) %>% melt()
-ggplot(data = tmp, aes(x = variable, y = value, group = gene, color = gene)) + 
-    geom_line() + 
-    geom_point()
-
-# Observe counts and normalized counts of genes with drops in LogFCS
-df <- as.matrix(GetAssayData(sc_filtered_data)[target_genes, ]) %>% melt() %>% data.frame() %>% mutate(grp = Idents(sc_filtered_data)[Var2])
-p1 <- ggplot(data = df, aes(x = value, y = Var1, color = grp)) + 
-    geom_boxplot()
-df <- as.matrix(GetAssayData(sc_filtered_data)[selected_genes[1:3], ]) %>% melt() %>% data.frame() %>% mutate(grp = Idents(sc_filtered_data)[Var2])
-p2 <- ggplot(data = df, aes(x = value, y = Var1, color = grp)) + 
-    geom_boxplot()
-df <- as.matrix(GetAssayData(sc_normalized_data)[target_genes, ]) %>% melt() %>% data.frame() %>% mutate(grp = Idents(sc_filtered_data)[Var2])
-p3 <- ggplot(data = df, aes(x = value, y = Var1, color = grp)) + 
-    geom_boxplot()
-df <- as.matrix(GetAssayData(sc_normalized_data)[selected_genes[1:3], ]) %>% melt() %>% data.frame() %>% mutate(grp = Idents(sc_filtered_data)[Var2])
-p4 <- ggplot(data = df, aes(x = value, y = Var1, color = grp)) + 
-    geom_boxplot()
-
-
-fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-annotate_figure(fig, top = text_grob('Counts and normalized gene expression for dropped LogFC genes and top 3 genes', 
-                                     face = 'bold', size = 14))
 
 # ---------------------------------------------------------
 # Rank top n genes
@@ -339,51 +278,12 @@ annotate_figure(fig, top = text_grob('Counts and normalized gene expression for 
 concerned_genes <- single_markers$gene[1:100]
 rank_plot(concerned_genes, bulk_markers$`DESeq2-Wald`, super_markers)
 
-common.genes <- intersect(super_markers$`1`$gene, super_markers$`50`$gene)
-df <- data.frame(p1 = super_markers$`1`[common.genes, 'adj.p.value'],
-                 p50 = super_markers$`50`[common.genes, 'adj.p.value'],
-                 std1 = super_markers$`1`[common.genes, 'std.err'],
-                 std50 = super_markers$`50`[common.genes, 'std.err'],
-                 df1 = super_markers$`1`[common.genes, 'df'],
-                 df50 = super_markers$`50`[common.genes, 'df'],
-                 t1 = super_markers$`1`[common.genes, 't.value'],
-                 t50 = super_markers$`50`[common.genes, 't.value'],
-                 top100 = common.genes %in% concerned_genes,
-                 m1.1 = super_markers$`1`[common.genes, 'w.mean.1'],
-                 m1.50 = super_markers$`50`[common.genes, 'w.mean.1'],
-                 m2.1 = super_markers$`1`[common.genes, 'w.mean.2'],
-                 m2.50 = super_markers$`50`[common.genes, 'w.mean.2'])
-p1 <- ggplot(data = df, aes(x = -log10(p1), y = -log10(p50), color = top100)) +
-        geom_point() +
-        geom_smooth() +
-        ylab('-log10 p gamma = 50') +
-        xlab('-log10 p gamma = 1')
-p2 <- ggplot(data = df, aes(x = std1, y = std50, color = top100)) +
-    geom_point() +
-    geom_smooth() +
-    ylab('std err gamma = 50') +
-    xlab('std err gamma = 1')
-p3 <- ggplot(data = df, aes(x = as.numeric(df1), y = as.numeric(df50), color = top100)) +
-    geom_point() +
-    geom_smooth() +
-    ylab('df gamma = 50') +
-    xlab('df gamma = 1')
-p4 <- ggplot(data = df, aes(x = as.numeric(t1), y = as.numeric(t50), color = top100)) +
-    geom_point() +
-    geom_smooth() +
-    ylab('t gamma = 50') +
-    xlab('t gamma = 1')
-p5 <- ggplot(data = df, aes(x = as.numeric(m1.1), y = as.numeric(m1.50), color = top100)) +
-    geom_point() +
-    geom_smooth() +
-    ylab('mean 1 gamma = 50') +
-    xlab('mean 1 gamma = 1')
-p6 <- ggplot(data = df, aes(x = as.numeric(m2.1), y = as.numeric(m2.50), color = top100)) +
-    geom_point() +
-    geom_smooth() +
-    ylab('mean 2 gamma = 50') +
-    xlab('mean 2 gamma = 1')
-ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
+
+# ---------------------------------------------------------
+# Statistics comparison at different gammas
+# ---------------------------------------------------------
+compare_statistics(super_markers)
+
 
 # ---------------------------------------------------------
 # Weighted vs unweighted (should uncomment lines in super_DE)
@@ -405,3 +305,22 @@ lines(-log10(df$p2),  -log10(df$wp2), col = 'blue', lty = 1, lwd = 2)
 lines(-log10(df$p5),  -log10(df$wp5), col = 'green', lty = 1, lwd = 2)
 lines(-log10(df$p10),  -log10(df$wp10), col = 'black', lty = 1, lwd = 2)
 legend('topright', c('Gamma = 1', 'Gamma = 2', 'Gamma = 5', 'Gamma = 10'))
+
+# ---------------------------------------------------------
+# Gene selection analysis
+# ---------------------------------------------------------
+# Selection of genes found as DE by bulk and pseudo bulk -> gt genes that should
+# also be found at supercell level
+gt.genes <- sample(intersect(bulk_markers$`DESeq2-Wald`$gene[1:100], 
+                      pseudo_markers2$`DESeq2-Wald`$gene[1:100]), 12)
+diff.bulk <- ncol(sc_clustered_data) - ncol(pseudobulk_norm)
+
+par(mfrow = c(3, 4))
+for(gene in gt.genes){
+    df <- data.frame(sc = GetAssayData(sc_clustered_data)[gene, ],
+                     pseudo = c(GetAssayData(pseudobulk_norm)[gene, ], rep(NA, diff.bulk)),
+                     bulk = c(GetAssayData(bdata)[gene, ], rep(NA, diff.bulk)))
+    
+    boxplot(df, ylab = 'Normalized expression', main = gene)
+}
+           

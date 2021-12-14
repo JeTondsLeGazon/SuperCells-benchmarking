@@ -26,162 +26,6 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
     return(sum(res)/max_s)
 }
 
-compute_aucc <- function(set1,
-                         set2,  # second set of DE genes, ordered by p-values
-                         k = 200)      # number of top interactions to perform
-{
-    results <- aucc(set1, set2, k = k)
-    
-    # s <- length(results[[2]])
-    # plot(1:s, 
-    #      results[[2]], 
-    #      xlab = 'top n significant genes',
-    #      ylab = 'Concordance score between sets', 
-    #      main = sprintf('Concordance Curve (score AUCC: %s)', round(results[[1]], 3)), 
-    #      type = 'l',
-    #      lwd = 2,
-    #      col = 'red',
-    #      pch = 16,
-    #      xlim = c(0, s),
-    #      ylim = c(0, s))
-    # lines(1:s, 1:s, lwd = 2)
-    # legend(1, 100, legend=c("Concordance curve", "Optimal"), col=c("red", "black"), lty = 1, cex=0.8, lwd = 2)
-    return(results[1])
-    }
-
-
-# Performs AUCC computing per cluster
-compute_aucc_per_cluster <- function(DE1,
-                                     DE2,
-                                     clusters,
-                                     k = 200)
-{
-    all_res <- list()
-    for(cl in clusters){
-        set1 <- subset(DE1, cluster == cl) %>%
-            arrange(adj.p.value, 1 / (logFC + 1)) %>%
-            select(gene) %>%
-            unlist()
-
-        set2 <- subset(DE2, cluster == cl) %>%
-            arrange(adj.p.value, 1 / (logFC + 1)) %>%
-            select(gene) %>%
-            unlist()
-        all_res[cl] <- list(aucc(set1, set2, k))
-        s <- length(all_res[[cl]][[2]])
-        plot(1:s, 
-             all_res[[cl]][[2]], 
-             xlab = 'top n significant genes',
-             ylab = 'Concordance score between sets', 
-             main = sprintf('Concordance Curve cluster %s (score AUCC: %s)', cl, round(all_res[[cl]][[1]], 3)), 
-             type = 'l',
-             lwd = 2,
-             col = 'red',
-             pch = 16,
-             xlim = c(0, s),
-             ylim = c(0, s))
-        lines(1:s, 1:s, lwd = 2)
-        legend(1, 100, legend=c("Concordance curve", "Optimal"), col=c("red", "black"), lty = 1, cex=0.8, lwd = 2)
-    }
-    all_res
-}
-
-# Save all figures from tmp_dir that are visualized in Rstudio into selected 
-# folder
-# TODO: create high level function that keeps in memory already copies files
-savefig <- function(target_dir_path,  # directory in which figures will be saved
-                    files_names = NULL)  # names of figures in appearing order
-{
-    # Check that target_dir_path exists
-    if (!dir.exists(target_dir_path)){
-        dir.create(target_dir_path)
-    }
-    
-    plots.dir.path <- list.files(tempdir(), pattern="rs-graphics", full.names = TRUE)
-    plots.png.paths <- list.files(plots.dir.path, pattern=".png", full.names = TRUE)
-    
-    
-    file.copy(from = plots.png.paths, to = target_dir_path)
-    
-    # Check we have enough names for all files (more names will not be used)
-    if (!is.null(files_names)){
-        # get names of figures only
-        splt_names <- unlist(strsplit(plots.png.paths, '/'))
-        fig_names <- splt_names[grep(".png$", splt_names)]
-        fig_names_clean <- fig_names[!fig_names %in% c('empty.png')]
-        
-        l <- length(fig_names_clean)
-        if (length(files_names) < length(fig_names_clean)){
-            message('Size of files_names should be greater or equal to the number of
-                    files in tmp_dir')
-        }else{
-            # rename
-            file.rename(file.path(target_dir_path, fig_names_clean), 
-                        file.path(target_dir_path, files_names[1:l]))
-        }
-    }
-    invisible(0)
-}
-
-
-# Cleans all .png from a folder
-cleanfig <- function(target_dir_path)  # directory that contains the figures
-{
-    if (dir.exists(target_dir_path)){
-        file.remove(list.files(target_dir_path, pattern = '.png$'))
-    }else{
-        message(sprintf('Could not find directory %s', target_dir_path))
-    }
-    invisible(0)
-}
-
-
-# Display significant genes from two groups to compare
-# TODO: check with gather() for tidyverse of melt() from reshape
-display_significant_genes <- function(seurat_obj,  # seurat object with data
-                                      cluster_,  # cluster to check vs others
-                                      super_markers,  # markers from super cell
-                                      single_markers,  # markers from single cell
-                                      topn = 10,  # number of top genes to compare
-                                      samples = 500)  # subsampling level
-{
-    sub_sc <- NormalizeData(seurat_obj[, sample(colnames(seurat_obj), samples)])
-    
-    grouping <- factor(sub_sc$cell_type == cluster_, labels = c(cluster_, 'other'), levels = c(TRUE, FALSE))
-    markers1 <- subset(super_markers, cluster == cluster_)$gene[1:topn]
-    markers2 <- subset(single_markers, cluster == cluster_)$gene[1:topn]
-    tot_markers <- c(markers1, markers2)
-    
-    ge <- as.matrix(GetAssayData(sub_sc)[tot_markers, ])
-    to_plot <- data.frame(cell = NULL, gene = NULL, count = NULL)
-    for(j in 1:ncol(ge)){
-        to_plot <- rbind(to_plot, data.frame(cell = rep(colnames(ge)[j], nrow(ge)), 
-                                             gene = rownames(ge), 
-                                             count = ge[, j],
-                                             cluster = rep(grouping[colnames(ge)[j]], nrow(ge)),
-                                             super = tot_markers %in% markers1,
-                                             single = tot_markers %in% markers2))
-    }
-    
-    t <- to_plot[to_plot$super == T, ]
-    p1 <- ggplot(data = t, aes(x = gene, y = count, color = cluster)) + 
-        geom_boxplot() +
-        scale_y_log10() +
-        ggtitle(sprintf("Top %s Significant DE Genes for Super cells", topn)) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        ylab('Log10 normalized count')
-    
-    t <- to_plot[to_plot$single == T, ]
-    p2 <- ggplot(data = t, aes(x = gene, y = count, color = cluster)) + 
-        geom_boxplot() +
-        scale_y_log10() +
-        ggtitle(sprintf("Top %s Significant DE Genes for Single cells", topn)) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-        ylab('Log10 normalized count')
-    
-    print(p1 + p2)
-}
-
 
 plot_score_results <- function(scores){
    df <- data.frame(scores)
@@ -203,23 +47,6 @@ plot_score_results <- function(scores){
 }
 
 
-plot_expression <- function(top_genes, seurat_data, title_append, sampling = F){
-    p <- GetAssayData(seurat_data)[top_genes, ] %>%
-        as.matrix() %>%
-        melt() %>%
-        mutate(ctrl = Idents(seurat_data)[Var2])
-    if (sampling) {p <- sample(p, 100)}
-    
-    gplot <- ggplot(data = p, aes(x = Var1, y = value, color = ctrl)) +
-        geom_point(size = 5) +
-        scale_y_log10() +
-        ylab('Log10count of genes') +
-        xlab('Top DE genes according to GT') +
-        ggtitle(sprintf('Comparison of top 10 DE genes from %s between groups using %s 
-            gene expression matrix', title_append[1], title_append[2])) +
-        theme(plot.title = element_text(hjust = 0.5))
-    return(gplot)
-}
 
 gt_coverage <- function(de_gt, de_other, sig_level = 0.05){
     s_gt <- de_gt[de_gt$adj.p.value < sig_level, 'gene']
@@ -365,4 +192,54 @@ plot_matches <- function(supercell_res, others, legends = NULL){
     p <- barplot(scores, las=2, ylim = c(0,1))
     text(x = p, y = scores + 0.17, labels = names, srt = 90)
     print(p)
+}
+
+
+# Compare statistics from t-test at different graining levels
+compare_statistics <- function(super_markers){
+    common.genes <- intersect(super_markers$`1`$gene, super_markers$`50`$gene)
+    df <- data.frame(p1 = super_markers$`1`[common.genes, 'adj.p.value'],
+                     p50 = super_markers$`50`[common.genes, 'adj.p.value'],
+                     std1 = super_markers$`1`[common.genes, 'std.err'],
+                     std50 = super_markers$`50`[common.genes, 'std.err'],
+                     df1 = super_markers$`1`[common.genes, 'df'],
+                     df50 = super_markers$`50`[common.genes, 'df'],
+                     t1 = super_markers$`1`[common.genes, 't.value'],
+                     t50 = super_markers$`50`[common.genes, 't.value'],
+                     top100 = common.genes %in% concerned_genes,
+                     m1.1 = super_markers$`1`[common.genes, 'w.mean.1'],
+                     m1.50 = super_markers$`50`[common.genes, 'w.mean.1'],
+                     m2.1 = super_markers$`1`[common.genes, 'w.mean.2'],
+                     m2.50 = super_markers$`50`[common.genes, 'w.mean.2'])
+    p1 <- ggplot(data = df, aes(x = -log10(p1), y = -log10(p50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('-log10 p gamma = 50') +
+        xlab('-log10 p gamma = 1')
+    p2 <- ggplot(data = df, aes(x = std1, y = std50, color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('std err gamma = 50') +
+        xlab('std err gamma = 1')
+    p3 <- ggplot(data = df, aes(x = as.numeric(df1), y = as.numeric(df50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('df gamma = 50') +
+        xlab('df gamma = 1')
+    p4 <- ggplot(data = df, aes(x = as.numeric(t1), y = as.numeric(t50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('t gamma = 50') +
+        xlab('t gamma = 1')
+    p5 <- ggplot(data = df, aes(x = as.numeric(m1.1), y = as.numeric(m1.50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('mean 1 gamma = 50') +
+        xlab('mean 1 gamma = 1')
+    p6 <- ggplot(data = df, aes(x = as.numeric(m2.1), y = as.numeric(m2.50), color = top100)) +
+        geom_point() +
+        geom_smooth() +
+        ylab('mean 2 gamma = 50') +
+        xlab('mean 2 gamma = 1')
+    ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
 }

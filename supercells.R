@@ -6,23 +6,11 @@ library(SuperCell)
 # Uses new cell.annotation to perform DE for each cluster according to treatment
 # vs control and merge all DEs together for a single gamma
 superCells_DE <- function(data,  # gene expression matrix counts
-                                     gamma  # graining level of super cells
+                          gamma  # graining level of super cells
 )
 {
     
-    super <- SCimplify(GetAssayData(data),
-                       cell.annotation = Idents(data),
-                       k.knn = 5,
-                       gamma = gamma,
-                       n.var.genes = 1000,
-                       directed = FALSE
-    )
-        
-    super$cell_line <- supercell_assign(clusters = Idents(data),
-                                        supercell_membership = super$membership,
-                                        method = "jaccard")
-    
-    super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
+    super <- superCells_GE(data, gamma)
     #supercell_plot(super$graph.supercells, 
     #               group = super$cell_line, 
     #               seed = 0, 
@@ -70,4 +58,24 @@ superCells_DEs <- function(data,  # normalized logcounts seurat object
         super_DEs[[as.character(gam)]] <- super_res
     }
     return(super_DEs)
+}
+
+
+# Computes the gene expression (arithmetic average) matrix for superCell at a 
+# specific gamma
+superCells_GE <- function(data, gamma){
+    super <-  SCimplify(GetAssayData(data),
+                        cell.annotation = Idents(data),
+                        k.knn = 5,
+                        gamma = gamma,
+                        n.var.genes = 1000,
+                        directed = FALSE
+    )
+    
+    super$cell_line <- supercell_assign(clusters = Idents(data),
+                                        supercell_membership = super$membership,
+                                        method = "jaccard")
+    
+    super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
+    return(super)
 }

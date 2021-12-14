@@ -48,14 +48,21 @@ superCells_DE <- function(data,  # gene expression matrix counts
 # Computes DE genes for superCells at different graining levels
 superCells_DEs <- function(data,  # normalized logcounts seurat object
                            gammas,  # list of graning levels to use
-                           knn  # number of nearest neighbors to use
-                           ) 
+                           knn,  # number of nearest neighbors to use
+                           resetData = F) 
 {
-    super_DEs <- list()
-    for(gam in gammas){
-            super_res <- superCells_DE(data,
-                                       gamma = gam)
-        super_DEs[[as.character(gam)]] <- super_res
+    file.name <- 'superCells.RData'
+    if(resetData){
+        super_DEs <- list()
+        for(gam in gammas){
+                super_res <- superCells_DE(data,
+                                           gamma = gam)
+            super_DEs[[as.character(gam)]] <- super_res
+        }
+        saveRDS(super_DEs, file.path('./data', file.name))
+    }
+    else{
+        super_DEs <- readRDS(file.path('./data', file.name))
     }
     return(super_DEs)
 }

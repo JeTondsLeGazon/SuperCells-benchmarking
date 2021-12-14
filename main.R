@@ -2,8 +2,9 @@
 
 # Performs comparison between DEA from different sources, mainly SuperCells and
 # ground truth (bulk DNA) from various dataset
-#setwd(paste0(getwd(), '/SuperCells-benchmarking'))
-
+if(!('SuperCells-benchmarking' %in% unlist(strsplit(getwd(), '/')))){
+    setwd(paste0(getwd(), '/SuperCells-benchmarking'))
+}
 library(Seurat)
 library(dplyr)
 library(Matrix)
@@ -32,7 +33,7 @@ source('processing.R')
 # Meta parameters
 # ---------------------------------------------------------
 filename <- 'Hagai2018_mouse-lps.rds'
-resetData <- F
+resetData <- T
 
 # ---------------------------------------------------------
 # Data loading
@@ -206,7 +207,8 @@ if(gammax > 1000){
     gammas <- c(1, 2, 5, 10, 50, 100, 200)
 }
 memory.limit(size=56000)
-super_markers <- superCells_DEs(sc_clustered_data, gammas, 5)
+super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, 
+                                resetData = resetData)
 
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
     ggtitle('Volcano plot of SuperCells at level gamma = 5') +
@@ -221,7 +223,8 @@ super_markers <- lapply(super_markers ,function(x) x %>%
 # ---------------------------------------------------------
 # Single cell markers
 
-single_markers <- singleCell_DE(sc_clustered_data, var.features = 500)
+single_markers <- singleCell_DE(sc_clustered_data, var.features = 500, 
+                                resetData = resetData)
 volcano_plot(single_markers, logfc.thres = 0.5) +
     ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
     theme(plot.title = element_text(hjust = 0.5))

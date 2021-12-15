@@ -33,7 +33,7 @@ source('processing.R')
 # Meta parameters
 # ---------------------------------------------------------
 filename <- 'Hagai2018_mouse-lps.rds'
-resetData <- T
+resetData <- F
 
 # ---------------------------------------------------------
 # Data loading

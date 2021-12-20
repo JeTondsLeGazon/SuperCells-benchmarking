@@ -67,7 +67,7 @@ compute_DE_bulk <- function(data, meta){
 
 
 # Computes differential expression for single-cell data
-singleCell_DE <- function(sc_data, var.features, resetData = F){
+singleCell_DE <- function(sc_data, var.features, resetData = F, stat.test = 't'){
     
     file.name <- 'singleCell.RData'
     if(resetData){
@@ -86,7 +86,7 @@ singleCell_DE <- function(sc_data, var.features, resetData = F){
                                    ident.2 = levels(sc_data)[group_id_ctrl],
                                    only.pos = F, 
                                    logfc.threshold = 0, 
-                                   test.use = 't') %>%
+                                   test.use = stat.test) %>%
                 mutate(gene = rownames(.))
             single_markers <- rbind(single_markers, markers)
         }
@@ -121,20 +121,24 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
                           GT,  # Ground truth for comparison with supercells
                           which.score = 'aucc')  # type of score to compute
 {
-    max.k <- min(sapply(DEAs, nrow))
-    if(max.k > 100){
-        ks <- c(10, 50, 100)
-    }else{
-        ks <- c(round(max.k / 4, 0), round(max.k / 2, 0), max.k)
+    if (which.score == 'aucc'){
+        max.k <- min(sapply(DEAs, nrow))
+        if(max.k > 100){
+            ks <- c(10, 50, 100)
+        }else{
+            ks <- c(round(max.k / 4, 0), round(max.k / 2, 0), max.k)
+        }
+            scores <- lapply(ks, function(k) sapply(DEAs, function(x) aucc(x$gene, GT$gene, k)))
+            names(scores) <- ks
+    }else if(which.score == 'tpr'){
+        scores <- sapply(DEAs, function(x) tpr(x$gene, GT$gene))
     }
-        scores <- lapply(ks, function(k) sapply(DEAs, function(x) aucc(x$gene, GT$gene, k)))
-        names(scores) <- ks
     return(scores)
 }
 
 
 # Manual computation of logFC and t-test for bulk data
-find_markers_bulk <- function(bulkData){
+find_markers_bulk <- function(bulkData, stat.test){
     
     bulkData <- NormalizeData(bulkData)
     
@@ -149,7 +153,12 @@ find_markers_bulk <- function(bulkData){
     ge <- GetAssayData(bulkData)
     dfs <- lapply(1:nrow(ge), function(i) data.frame(value = ge[i, ], 
                                                      grp = c(rep('lsp', nb_samples/2), rep('ctrl', nb_samples/2))))
-    pvals <- sapply(dfs, function(x) t.test(x$value ~ x$grp)$p.value)
+    if(stat.test == 'wicox'){
+        hyp.test <- wilcox.test
+    }else{
+        hyp.test <- t.test
+    }
+    pvals <- sapply(dfs, function(x) hyp.test(x$value ~ x$grp)$p.value)
     padj <- p.adjust(pvals, 'BH')
     r <- data.frame(row.names = rownames(bulkData), 
                     logFC = logFCs, 

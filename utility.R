@@ -27,6 +27,13 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
 }
 
 
+# Computes true positive rate (TPR) between ground truth and a candidate
+tpr <- function(gt, other){
+    sum(!is.na(match(gt, other))) / length(other)
+}
+
+
+
 plot_score_results <- function(scores){
    df <- data.frame(scores)
    labels <- sapply(unique(df$L1), function(x) paste0('Top n = ', x))
@@ -170,14 +177,15 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
 plot_matches <- function(supercell_res, others, legends = NULL){
     gammas <- as.numeric(names(supercell_res))
     plot(NULL, ylim=c(0,1), xlim=c(min(gammas), max(gammas)), 
-         ylab="Match scores", xlab="Gammas", log = 'x')    
+         ylab="Match scores", xlab="Gammas", log = 'x')
+    chr <- c(8, 15, 16, 17, 18, 4, 3)
     for (i in seq_along(others)){
         matching <- unlist(lapply(supercell_res, function(x) gene_match(x$gene, others[[i]]$gene)))
-        points(gammas, matching, col = i, pch = 19)
-        lines(gammas, matching, col = i)
+        points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
+        lines(gammas, matching, col = i, lwd = 1.5)
     }
     legend('topright', 
-           legend = legends, col = seq_along(others), pch = 19)
+           legend = legends, col = seq_along(others), pch = chr[seq_along(others)])
     grid()
 
     scores <- c()

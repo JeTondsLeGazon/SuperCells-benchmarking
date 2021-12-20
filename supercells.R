@@ -6,7 +6,9 @@ library(SuperCell)
 # Uses new cell.annotation to perform DE for each cluster according to treatment
 # vs control and merge all DEs together for a single gamma
 superCells_DE <- function(data,  # gene expression matrix counts
-                          gamma  # graining level of super cells
+                          gamma,  # graining level of super cells
+                          weighted,  # whether to perform weighted t-tests or not
+                          test.use
 )
 {
     
@@ -22,17 +24,23 @@ superCells_DE <- function(data,  # gene expression matrix counts
     clusters <- unique(super$cell_line)
     nb_groups <- sapply(clusters, function(x) as.numeric(str_sub(x, -1, -1)))
     
+    if (weighted){
+        myFunc <- supercell_FindMarkers_weighted
+    }else{
+        myFunc <- supercell_FindMarkers
+    }
     DEs <- c()
     for(i in seq_along(max(nb_groups)))
     {
-        DE <- supercell_FindMarkers(ge = super$GE,
-                                    supercell_size = super$supercell_size,
-                                    clusters = super$cell_line,
-                                    ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
-                                    ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
-                                    logfc.threshold = 0,
-                                    only.pos = F,
-                                    do.bootstrapping = F) %>%
+        DE <- myFunc(ge = super$GE,
+                        supercell_size = super$supercell_size,
+                        clusters = super$cell_line,
+                        ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
+                        ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
+                        logfc.threshold = 0,
+                        only.pos = F,
+                        do.bootstrapping = F,
+                        test.use = test.use) %>%
                 mutate(gene = rownames(.))
         
         DEs <- rbind(DEs, DE)
@@ -49,14 +57,18 @@ superCells_DE <- function(data,  # gene expression matrix counts
 superCells_DEs <- function(data,  # normalized logcounts seurat object
                            gammas,  # list of graning levels to use
                            knn,  # number of nearest neighbors to use
-                           resetData = F) 
+                           resetData = F,
+                           weighted = F,
+                           test.use = 't') 
 {
     file.name <- 'superCells.RData'
     if(resetData){
         super_DEs <- list()
         for(gam in gammas){
                 super_res <- superCells_DE(data,
-                                           gamma = gam)
+                                           gamma = gam,
+                                           weighted = weighted,
+                                           test.use = test.use)
             super_DEs[[as.character(gam)]] <- super_res
         }
         saveRDS(super_DEs, file.path('./data', file.name))

@@ -208,11 +208,24 @@ sub_cluster <- function(singleCell_data){
 
 
 # Change identification of cells based on clustering / analysis
-reIdent <- function(sc, initial_centers = NULL, labels  = NULL){
-    if(is.null(initial_centers) & is.null(labels)){
+reIdent <- function(sc, initial_centers = NULL, labels  = NULL, replicate = F){
+    if(is.null(initial_centers) & is.null(labels) & !replicate){
+        return(sc)
+    }
+    if(replicate & !is.null(labels) & is.null(initial_centers)){
+        # Return clusters according to replicate and condition (pseudo bulk like)
+        new.labels <- labels
+        names(new.labels) <- unique(Idents(sc))
+        sc <- RenameIdents(sc, new.labels)
+        
+        new.labels <- paste(Idents(sc), sc$replicate, sep = '_')
+        sc$my.new.labels <- new.labels
+        Idents(sc) <- 'my.new.labels'
+        print(DimPlot(sc, reduction = 'umap'))
         return(sc)
     }
     if(is.null(initial_centers)){
+        # Return cluster as ordered in labels (count as renaming current labels) 
         new.labels <- labels
         names(new.labels) <- unique(Idents(sc))
         sc <- RenameIdents(sc, new.labels)

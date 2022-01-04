@@ -34,10 +34,34 @@ source('processing.R')
 # ---------------------------------------------------------
 filename <- 'Hagai2018_mouse-lps.rds'
 
+ctrl_vs_treat <- list(ctrl = 'unst',
+                      treat = 'lps4')
+
 stat.test <- 't'
 weighted <- F
 resetSingle <- F
 resetSuper <- F
+
+filtering_param <- list(max.doublet.percentile = 0.95,
+                        min.gene.per.cell = 300,
+                        min.count.per.cell = 500,
+                        min.count.per.genes = 200,
+                        max.ribo.percent = 55,
+                        max.mito.percent = 20,
+                        max.hb.percent = 5)
+
+normMethod <- 'seurat'
+#filtering_param_others <- list(max.doublet.percentile = 0.95,
+#                               min.gene.per.cell = 300,
+#                               min.count.per.cell = 500,
+#                               min.count.per.genes = 400,
+#                               max.ribo.percent = 40,
+#                               max.mito.percent = 20,
+#                               max.hb.percent = 5)
+
+centers <- matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
+
+compute_cluter <- F
 
 
 # ---------------------------------------------------------
@@ -53,15 +77,28 @@ bulkpath <- '../bulk_rnaseq/rds'
 sc_data <- readRDS(file.path(scpath, filename))
 bulk_raw <- readRDS(file.path(bulkpath, filename))
 
+#Label modification to ensure homogeneity between datasets
+sc_data$label <- factor(sc_data$label, 
+                        labels = names(ctrl_vs_treat), 
+                        levels = ctrl_vs_treat)
+
+
 rownames(bulk_raw$meta) <- bulk_raw$meta$sample
 bulk_data <- CreateSeuratObject(bulk_raw$assay, meta.data = bulk_raw$meta)
 
 # if CanoGamez, troubles in the meta ...
-Idents(bulk_data) <- bulk_raw$meta$label
-bulk_data$label <- Idents(bulk_data)
+bulk_data$label <- factor(tolower(bulk_raw$meta$label), 
+                        labels = names(ctrl_vs_treat), 
+                        levels = ctrl_vs_treat)
 
+bulk_data$sample <- createSample(bulk_data)
+sc_data$sample <- createSample(sc_data)
+
+Idents(bulk_data) <- 'label'
 Idents(sc_data) <- 'label'
 set.seed(0)
+
+
 # ---------------------------------------------------------
 # QC and filtering
 # ---------------------------------------------------------
@@ -69,11 +106,8 @@ set.seed(0)
 # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1
 sc_data <- singleCell_qc(sc_data)
 sc_filtered_data <- singleCell_filtering(sc_data, 
-                                         max.ribo.percent = 55)#,
-                                         #min.gene.per.cell = 300,
-                                         #min.count.per.cell = 400)
+                                         filtering_param)
 bulk_filtered_data <- bulk_qc_and_filtering(bulk_data)
-
 
 
 # ---------------------------------------------------------
@@ -90,15 +124,14 @@ bulk_filtered_data <- bulk_filtered_data[use_genes, ]
 # Normalization
 # ---------------------------------------------------------
 # Only on single cell data as bulk data should be used with raw counts
-sc_normalized_data <- NormalizeObject(sc_filtered_data, method = 'else')
+sc_normalized_data <- NormalizeObject(sc_filtered_data, method = normMethod)
 
 
 # ---------------------------------------------------------
 # Pseudo bulk creation
 # ---------------------------------------------------------
-pseudobulk_data <- create_pseudobulk(rename_sample(sc_filtered_data, 
-                                                   c('treat1', 'ctrl1', 'treat2', 'ctrl2', 'treat3', 'ctrl3')))
-pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = 'else')
+pseudobulk_data <- create_pseudobulk(sc_filtered_data)
+pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = normMethod)
 
 
 # ---------------------------------------------------------
@@ -113,11 +146,11 @@ sc_clustered_data <- sub_cluster(sc_normalized_data)
 # pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
 # rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
 # rabbit-lps: matrix(c(7, -5, 7, -5, -5, -5, 7, 7), ncol = 2)
-centers <- matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
-sc_clustered_data <- reIdent(sc_clustered_data, 
-                             initial_centers = NULL, 
-                             labels = c('treat', 'ctrl'),
-                             replicate = T)
+if(compute_cluter){
+    sc_clustered_data <- reIdent(sc_clustered_data, centers)
+}else{
+    Idents(sc_clustered_data) <- 'sample'
+}
 
 
 # bulk data plot
@@ -202,27 +235,24 @@ super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
 # ---------------------------------------------------------
 super_markers_des <- list()
 
-reformated_data <- reIdent(sc_filtered_data, 
-                           labels = c('treat', 'ctrl'), 
-                           replicate = T)
 for(gamma in c(5, 10, 50, 100, 200, 1000, 2000, 10000, 20000)){
     print(gamma)
-    super <-  SCimplify(GetAssayData(reformated_data),
-                        cell.annotation = Idents(reformated_data),
+    super <-  SCimplify(GetAssayData(sc_filtered_data),
+                        cell.annotation = sc_filtered_data$sample,
                         k.knn = 5,
                         gamma = gamma,
                         n.var.genes = 1000,
                         directed = FALSE
     )
     
-    super$cell_line <- supercell_assign(clusters = Idents(reformated_data),
+    super$cell_line <- supercell_assign(clusters = sc_filtered_data$sample,
                                         supercell_membership = super$membership,
                                         method = "jaccard")
     
-    super$GE <- supercell_GE(GetAssayData(reformated_data), super$membership)
+    super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
     print(dim(super$GE))
     colData <- rep('ctrl', ncol(super$GE))
-    colData[grep('treat|lps4', super$cell_line)] <- 'treat'
+    colData[grep('treat', super$cell_line)] <- 'treat'
     super$design <- data.frame(colData)
     colnames(super$design) <- 'design'
     dds <- DESeqDataSetFromMatrix(floor(sweep(super$GE, 2, super$supercell_size, '*')),
@@ -240,10 +270,6 @@ for(gamma in c(5, 10, 50, 100, 200, 1000, 2000, 10000, 20000)){
         mutate(gene = rownames(.))
 }
 
-
-if(length(super_markers_des) == length(gammas)){
-    names(super_markers_des)[length(gammas)] <- 20000
-}
 
 super_markers_des <- lapply(super_markers_des, function(x) x %>% 
                                 arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%

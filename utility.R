@@ -4,6 +4,33 @@
 
 library(testit)
 
+# Creates the sample according to the condition (treatment vs control) and the
+# replicate if available (mouse/patient 1, mouse/patient 2, ...)
+createSample <- function(data){
+    if('replicate' %in% names(data[[]])){
+        if(nchar(unique(data$replicate)[1]) > 1){
+            spt <- str_split(data$replicate, '')
+            pos <- sapply(spt, function(x) grep('[0-9]', x))
+            samp <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
+            return(paste0(data$label, samp))
+        }else{
+            return(paste0(data$label, data$replicate))
+        }
+        
+    }else if('sample' %in% names(data[[]])){
+        spt <- str_split(data$sample, '_')
+        pos <- sapply(spt, function(x) grep('mouse|patient|subject', x))
+        samples <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
+        
+        spt <- str_split(samples, '')
+        pos <- sapply(spt, function(x) grep('[0-9]', x))
+        samp <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
+        return(paste0(data$label, samp))
+    }else{
+        return(0)
+    }
+}
+
 
 # Computes the Area under the Concordance curve between two sets of genes
 aucc <- function(set1,  # first set of DE genes, ordered by p-values

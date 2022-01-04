@@ -83,8 +83,8 @@ singleCell_DE <- function(sc_data, var.features,
             
             single_markers <- c()
             for(i in seq_along(max(nb_groups))){
-                group_id_treat <- grep(paste0('^treat.+', i, '$'), levels(sc_data))
-                group_id_ctrl <- grep(paste0('^ctrl.+', i, '$'), levels(sc_data))
+                group_id_treat <- grep(paste0('treat', i), levels(sc_data))
+                group_id_ctrl <- grep(paste0('ctrl', i), levels(sc_data))
                 markers <- FindMarkers(sc_data,
                                        ident.1 = levels(sc_data)[group_id_treat],
                                        ident.2 = levels(sc_data)[group_id_ctrl],
@@ -191,11 +191,3 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
               add.params = list(color = "blue", fill = "lightgray")) +
     geom_abline(color = 'red', size = 1)
 }
-
-
-start <- Sys.time()
-dds <- DESeqDataSetFromMatrix(GetAssayData(sc_filtered_data), 
-         colData = sc_filtered_data@meta.data, 
-         design = ~ label)
-stop <- Sys.time()
-print(stop-start)

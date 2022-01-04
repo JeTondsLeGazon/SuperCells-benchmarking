@@ -106,24 +106,18 @@ singleCell_qc <- function(sc_data){
 
 # Filtering of single cells according to parameter found in singleCell_qc
 singleCell_filtering <- function(sc_data, 
-                                 max.doublet.percentile = 0.95,
-                                 min.gene.per.cell = 300,
-                                 min.count.per.cell = 500,
-                                 min.count.per.genes = 200,
-                                 max.ribo.percent = 40,
-                                 max.mito.percent = 20,
-                                 max.hb.percent = 5){
+                                 params){
     
     cat('Dimensions prior to filtering: ')
     cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\n'))
-    genes.use <- rownames(GetAssayData(sc_data))[rowSums(GetAssayData(sc_data)) > min.count.per.genes]
+    genes.use <- rownames(GetAssayData(sc_data))[rowSums(GetAssayData(sc_data)) > params$min.count.per.genes]
     sc_data <- subset(sc_data, 
-                      subset = (percent_mito < max.mito.percent) &
-                          (percent_ribo < max.ribo.percent) &
-                          (percent_hb < max.hb.percent) &
-                          (nFeature_RNA > min.gene.per.cell) &
-                          (nCount_RNA > min.count.per.cell) & 
-                          (doubletScore < quantile(doubletScore, max.doublet.percentile)),
+                      subset = (percent_mito < params$max.mito.percent) &
+                          (percent_ribo < params$max.ribo.percent) &
+                          (percent_hb < params$max.hb.percent) &
+                          (nFeature_RNA > params$min.gene.per.cell) &
+                          (nCount_RNA > params$min.count.per.cell) & 
+                          (doubletScore < quantile(doubletScore, params$max.doublet.percentile)),
                       features = genes.use)
     cat('Dimensions after filtering: ')
     cat(paste0(dim(sc_data)[1], ' genes x ', dim(sc_data)[2], ' cells\n'))
@@ -139,7 +133,7 @@ NormalizeObject <- function(data, method = 'DESeq2', scaling.method = 'manual'){
         norm_factors <- scaling_factor(data, 'else')
         normalized_data[['RNA']] <- CreateAssayObject(as.matrix(log(sweep(GetAssayData(data), 2, norm_factors, '/') + 1)))
         
-    }else{
+    }else if (method == 'seurat'){
         normalized_data <- NormalizeData(data)
     }
     return(normalized_data)
@@ -208,32 +202,8 @@ sub_cluster <- function(singleCell_data){
 
 
 # Change identification of cells based on clustering / analysis
-reIdent <- function(sc, initial_centers = NULL, labels  = NULL, replicate = F){
-    if(is.null(initial_centers) & is.null(labels) & !replicate){
-        return(sc)
-    }
-    if(replicate & !is.null(labels) & is.null(initial_centers)){
-        # Return clusters according to replicate and condition (pseudo bulk like)
-        new.labels <- labels
-        names(new.labels) <- unique(Idents(sc))
-        sc <- RenameIdents(sc, new.labels)
-        
-        new.labels <- paste(Idents(sc), sc$replicate, sep = '_')
-        sc$my.new.labels <- new.labels
-        Idents(sc) <- 'my.new.labels'
-        if('umap' %in% names(sc)){
-            print(DimPlot(sc, reduction = 'umap'))
-        }
-        return(sc)
-    }
-    if(is.null(initial_centers)){
-        # Return cluster as ordered in labels (count as renaming current labels) 
-        new.labels <- labels
-        names(new.labels) <- unique(Idents(sc))
-        sc <- RenameIdents(sc, new.labels)
-        print(DimPlot(sc, reduction = 'umap'))
-        return(sc)
-    }
+reIdent <- function(sc, initial_centers){
+   
     clustering <- kmeans(Embeddings(sc, reduction = 'umap'), 
                          centers = initial_centers, 
                          iter.max = 10, nstart = 1)
@@ -241,7 +211,7 @@ reIdent <- function(sc, initial_centers = NULL, labels  = NULL, replicate = F){
     
     sorted_sizes <- clustering$withinss
     new.idents <- c()
-    for(i in seq_along(labels)){
+    for(i in seq_along(unique(sc$label))){
         new.idents <- c(new.idents, 
                         as.character(which(clustering$withinss == sorted_sizes[i])))
     }
@@ -256,15 +226,8 @@ reIdent <- function(sc, initial_centers = NULL, labels  = NULL, replicate = F){
 }
 
 
-# Rename samples according to new vector, careful as no check is done
-rename_sample <- function(data, new){
-    old <- unique(data$sample)
-    data$sample <- new[match(data$sample, old)]
-    data
-}
 
-
-# Create pseudobulk from seurat data, expect samples to have treat in their name
+# Create pseudobulk from seurat data
 create_pseudobulk <- function(data){
     counts <- as.matrix(GetAssayData(data))
     sample.id <- sort(unique(data$sample))

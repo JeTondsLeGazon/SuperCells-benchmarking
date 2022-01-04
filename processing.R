@@ -221,7 +221,9 @@ reIdent <- function(sc, initial_centers = NULL, labels  = NULL, replicate = F){
         new.labels <- paste(Idents(sc), sc$replicate, sep = '_')
         sc$my.new.labels <- new.labels
         Idents(sc) <- 'my.new.labels'
-        print(DimPlot(sc, reduction = 'umap'))
+        if('umap' %in% names(sc)){
+            print(DimPlot(sc, reduction = 'umap'))
+        }
         return(sc)
     }
     if(is.null(initial_centers)){

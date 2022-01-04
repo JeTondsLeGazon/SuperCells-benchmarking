@@ -27,12 +27,34 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
 }
 
 
-# Computes true positive rate (TPR) between ground truth and a candidate
-tpr <- function(gt, other){
-    sum(!is.na(match(gt, other))) / length(other)
+# Computes area under the roc curve from two statistics (gt and other)
+auc <- function(gt, other){
+    thresholds <- c(1-10, 1-5, 1-3, 0.01, 0.05, 0.1, 0.5, 1)
+    pos <- gt %>% subset(adj.p.value < 0.05)
+    neg <- gt %>% subset(adj.p.value >= 0.05)
+    points <- c(1, 0)
+    for(thres in thresholds){
+        tp <- sum(!is.na(match(pos$gene, subset(other, other$adj.p.value < thres)$gene)))
+        tn <- sum(!is.na(match(neg$gene, subset(other, other$adj.p.value >= thres)$gene)))
+        fp <- sum(!is.na(match(neg$gene, subset(other, other$adj.p.value < thres)$gene)))
+        fn <- sum(!is.na(match(pos$gene, subset(other, other$adj.p.value >= thres)$gene)))
+        sensi <- tp / (tp + fn)
+        speci <- tn / (tn + fp)
+        points <- c(points, c(speci, sensi))
+    }
+    points <- data.frame(matrix(points, ncol = 2, byrow = T))
+    colnames(points) <- c('specificity', 'sensitivity')
+    auc <- sum(diff((1 - points$specificity))*rollmean(points$sensitivity,2))
+    return(auc)
 }
 
 
+tpr <- function(gt, other){
+    tp <- sum(!is.na(match(subset(gt, gt$adj.p.value < 0.05)$gene, 
+                     subset(other, other$adj.p.value < 0.05)$gene)))
+    return(tp / nrow(subset(gt, gt$adj.p.value < 0.05)))
+    
+}
 
 plot_score_results <- function(scores){
    df <- data.frame(scores)
@@ -174,32 +196,43 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
 
 
 # Check percentage of matching top n DE genes between supercells and other DEs
-plot_matches <- function(supercell_res, others, legends = NULL){
+plot_matches <- function(supercell_res, others, legends = NULL, score.type = 'match'){
     gammas <- as.numeric(names(supercell_res))
     plot(NULL, ylim=c(0,1), xlim=c(min(gammas), max(gammas)), 
-         ylab="Match scores", xlab="Gammas", log = 'x')
+         ylab="Scores", xlab="Gammas", log = 'x')
     chr <- c(8, 15, 16, 17, 18, 4, 3)
     for (i in seq_along(others)){
-        matching <- unlist(lapply(supercell_res, function(x) gene_match(x$gene, others[[i]]$gene)))
+        if(score.type == 'match'){
+            matching <- unlist(lapply(supercell_res, function(x) gene_match(x$gene, others[[i]]$gene)))
+            title <- 'True positive rate among the top 100 DE genes between superCell and Ground truth'
+        }else if (score.type == 'auc'){
+            matching <- unlist(lapply(supercell_res, function(x) auc(others[[i]], x)))
+            title <- 'AUROC of DE genes between superCell and Ground truth'
+        }else if(score.type == 'tpr'){
+            matching <- unlist(lapply(supercell_res, function(x) tpr(others[[i]], x)))
+            title <- 'True positive rate of DE genes between superCell and Ground truth'
+        }
         points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
         lines(gammas, matching, col = i, lwd = 1.5)
     }
-    legend('topright', 
+    legend('bottomleft', 
            legend = legends, col = seq_along(others), pch = chr[seq_along(others)])
+    title(title)
     grid()
-
-    scores <- c()
-    names <- c()
-    for (i in seq_along(others)){
-        for(j in seq_len(length(others) - i)){
-            matching <- gene_match(others[[i]]$gene, others[[j + i]]$gene)
-            scores <- c(scores, matching)
-            names <- c(names, paste0(names(others)[i], '_vs_', names(others)[j + i]))
+    if(F){
+        scores <- c()
+        names <- c()
+        for (i in seq_along(others)){
+            for(j in seq_len(length(others) - i)){
+                matching <- gene_match(others[[i]]$gene, others[[j + i]]$gene)
+                scores <- c(scores, matching)
+                names <- c(names, paste0(names(others)[i], '_vs_', names(others)[j + i]))
+            }
         }
+        p <- barplot(scores, las=2, ylim = c(0,1))
+        text(x = p, y = scores + 0.17, labels = names, srt = 90)
+        print(p)
     }
-    p <- barplot(scores, las=2, ylim = c(0,1))
-    text(x = p, y = scores + 0.17, labels = names, srt = 90)
-    print(p)
 }
 
 
@@ -250,4 +283,13 @@ compare_statistics <- function(super_markers){
         ylab('mean 2 gamma = 50') +
         xlab('mean 2 gamma = 1')
     ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
+}
+
+fractionGenes <- function(DEs){
+    lapply(DEs, function(DE) sapply(DE$gene, function(x) fractionGene(x, DEs)))
+}
+
+fractionGene <- function(gene, DEs){
+    res <- sapply(DEs, function(x) gene %in% x$gene)
+    paste(sort(names(DEs)[res]), collapse = '-')
 }

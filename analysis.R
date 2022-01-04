@@ -67,28 +67,41 @@ compute_DE_bulk <- function(data, meta){
 
 
 # Computes differential expression for single-cell data
-singleCell_DE <- function(sc_data, var.features, resetData = F, stat.test = 't'){
+singleCell_DE <- function(sc_data, var.features, 
+                          resetData = F, 
+                          stat.test = 't', 
+                          by.group = F){
     
     file.name <- 'singleCell.RData'
     if(resetData){
         sc_data <- FindVariableFeatures(sc_data, nfeatures = var.features)
         
-        # Identify number of groups for paired test
-        nb_groups <- sapply(levels(sc_data), 
-                            function(x) as.numeric(str_sub(x, -1, -1)))
-        
-        single_markers <- c()
-        for(i in seq_along(max(nb_groups))){
-            group_id_treat <- grep(paste0('^treat.+', i, '$'), levels(sc_data))
-            group_id_ctrl <- grep(paste0('^ctrl.+', i, '$'), levels(sc_data))
-            markers <- FindMarkers(sc_data,
-                                   ident.1 = levels(sc_data)[group_id_treat],
-                                   ident.2 = levels(sc_data)[group_id_ctrl],
+        if(by.group){
+            # Identify number of groups for paired test
+            nb_groups <- sapply(levels(sc_data), 
+                                function(x) as.numeric(str_sub(x, -1, -1)))
+            
+            single_markers <- c()
+            for(i in seq_along(max(nb_groups))){
+                group_id_treat <- grep(paste0('^treat.+', i, '$'), levels(sc_data))
+                group_id_ctrl <- grep(paste0('^ctrl.+', i, '$'), levels(sc_data))
+                markers <- FindMarkers(sc_data,
+                                       ident.1 = levels(sc_data)[group_id_treat],
+                                       ident.2 = levels(sc_data)[group_id_ctrl],
+                                       only.pos = F, 
+                                       logfc.threshold = 0, 
+                                       test.use = stat.test) %>%
+                    mutate(gene = rownames(.))
+                single_markers <- rbind(single_markers, markers)
+            }
+        }else{
+            single_markers <- FindMarkers(sc_data,
+                                   ident.1 = levels(sc_clustered_data)[grep('treat', levels(sc_clustered_data))],
+                                   ident.2 = levels(sc_clustered_data)[grep('ctrl', levels(sc_clustered_data))],
                                    only.pos = F, 
                                    logfc.threshold = 0, 
                                    test.use = stat.test) %>%
                 mutate(gene = rownames(.))
-            single_markers <- rbind(single_markers, markers)
         }
     
     single_markers <- single_markers %>%
@@ -142,25 +155,26 @@ find_markers_bulk <- function(bulkData, stat.test){
     
     bulkData <- NormalizeData(bulkData)
     
-    nb_samples <- dim(bulkData)[2]
+    treat_grp <- grep('treat|[Ll][Pp][Ss]', Idents(bulkData))
+    ctrl_grp <- grep('ctrl|[Uu][Nn][Ss][Tt]', Idents(bulkData))
+    
     #Log FC computation
-    tmp <- exp(GetAssayData(bulkData)) %>% data.frame()
-    grp1 <- rowMeans(tmp[, 1:nb_samples/2])
-    grp2 <- rowMeans(tmp[, (nb_samples/2 + 1):nb_samples])
-    logFCs <- log1p(grp1 + 1) - log1p(grp2 + 1)
+    tmp <- expm1(GetAssayData(bulkData)) %>% data.frame()
+    grp1 <- rowMeans(tmp[, treat_grp])
+    grp2 <- rowMeans(tmp[, ctrl_grp])
+    logFCs <- log1p(grp1) - log1p(grp2)  # must do like this otherwise may / 0
     
     # t-test
-    ge <- GetAssayData(bulkData)
-    dfs <- lapply(1:nrow(ge), function(i) data.frame(value = ge[i, ], 
-                                                     grp = c(rep('lsp', nb_samples/2), rep('ctrl', nb_samples/2))))
     if(stat.test == 'wicox'){
         hyp.test <- wilcox.test
     }else{
         hyp.test <- t.test
     }
-    pvals <- sapply(dfs, function(x) hyp.test(x$value ~ x$grp)$p.value)
-    padj <- p.adjust(pvals, 'BH')
-    r <- data.frame(row.names = rownames(bulkData), 
+    ge <- GetAssayData(bulkData)
+    pvals <- apply(ge, 1, function(x) hyp.test(x[treat_grp], x[ctrl_grp])$p.value)
+    padj <- p.adjust(pvals, 'BH', nrow(ge))
+    r <- data.frame(row.names = rownames(bulkData),
+                    p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)
     return(r)
@@ -177,3 +191,11 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
               add.params = list(color = "blue", fill = "lightgray")) +
     geom_abline(color = 'red', size = 1)
 }
+
+
+start <- Sys.time()
+dds <- DESeqDataSetFromMatrix(GetAssayData(sc_filtered_data), 
+         colData = sc_filtered_data@meta.data, 
+         design = ~ label)
+stop <- Sys.time()
+print(stop-start)

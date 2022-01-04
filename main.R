@@ -21,7 +21,7 @@ library(stringr)
 library(tidyseurat)
 library(ggExtra)
 library(weights)
-
+library(zoo)
 
 source('utility.R')
 source('supercells.R')
@@ -34,10 +34,10 @@ source('processing.R')
 # ---------------------------------------------------------
 filename <- 'Hagai2018_mouse-lps.rds'
 
-stat.test <- 'wilcox'
+stat.test <- 't'
 weighted <- F
-resetSingle <- F  # saved with wilcox
-resetSuper <- T
+resetSingle <- F
+resetSuper <- F
 
 
 # ---------------------------------------------------------
@@ -141,7 +141,7 @@ volcano_plot(bulk_markers$`edgeR-QLF`) +
     ggtitle('Volcano plot of bulk data from DESeq2 (wald)') +
     theme(plot.title = element_text(hjust = 0.5))
 
-bulk_markers <- lapply(bulk_markers, function(x) subset(x, adj.p.value < 0.05 & logFC > 0))
+bulk_markers <- lapply(bulk_markers, function(x) x %>% subset(logFC > 0))
 bulk_markers <- lapply(bulk_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
 bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
 
@@ -153,23 +153,7 @@ bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
 manual_bulk_markers <- find_markers_bulk(bulk_filtered_data, stat.test) %>%
     arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
     mutate(gene = row.names(.)) %>%
-    subset(adj.p.value < 0.05 & logFC > 0) 
-
-
-# ---------------------------------------------------------
-# DE pseudobulk Seurat
-# ---------------------------------------------------------
-pseudo_markers <- pseudobulk_data %>% 
-                    FindVariableFeatures(nfeatures = 500) %>%
-                    FindMarkers(ident.1 = 'treat',
-                                ident.2 = 'ctrl',
-                                only.pos = T, 
-                                logfc.threshold = 0, 
-                                test.use = stat.test) %>%
-    mutate(gene = rownames(.)) %>%
-    dplyr::rename(adj.p.value = p_val_adj, logFC = avg_log2FC) %>%
-    arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-    subset(logFC > 0 & adj.p.value < 0.05)
+    subset(logFC > 0)
 
 
 # ---------------------------------------------------------
@@ -180,7 +164,7 @@ volcano_plot(pseudo_markers2$`edgeR-QLF`) +
     ggtitle('Volcano plot of pseudo bulk data from DESeq2 (wald)') +
     theme(plot.title = element_text(hjust = 0.5))
 
-pseudo_markers2 <- lapply(pseudo_markers2, function(x) subset(x, adj.p.value < 0.05 & logFC > 0))
+pseudo_markers2 <- lapply(pseudo_markers2, function(x) subset(x, logFC > 0))
 pseudo_markers2 <- lapply(pseudo_markers2, function(x) if(nrow(x) == 0){x <- NULL}else{x})
 pseudo_markers2 <- pseudo_markers2[!unlist(lapply(pseudo_markers2, is.null))]
 
@@ -188,54 +172,82 @@ pseudo_markers2 <- pseudo_markers2[!unlist(lapply(pseudo_markers2, is.null))]
 # ---------------------------------------------------------
 # DE pseudobulk manual
 # ---------------------------------------------------------
-half.id <- ncol(pseudobulk_norm) / 2
-if(stat.test == 'wilcox'){
-    hyp.test <- wilcox.test
-}else{
-    hyp.test <- t.test
-}
-pseudo_markers_manual <- lapply(1:nrow(pseudobulk_norm), 
-                  function(i) unlist(hyp.test(x = GetAssayData(pseudobulk_norm)[i, (half.id + 1) : ncol(pseudobulk_norm)],
-                              y = GetAssayData(pseudobulk_norm)[i, 1: half.id])))
-if(stat.test == 'wilcox'){
-    pseudo_markers_manual <- data.frame(matrix(unlist(pseudo_markers_manual), ncol = 6, byrow = T)[, c(1, 2)], 
-                                        row.names = rownames(pseudobulk_norm))
-    colnames(pseudo_markers_manual) <- c('w', 'p.value')
-}else{
-    pseudo_markers_manual <- data.frame(matrix(unlist(pseudo_markers_manual), ncol = 12, byrow = T)[, c(1, 2, 3, 9)], 
-                                        row.names = rownames(pseudobulk_norm))
-    colnames(pseudo_markers_manual) <- c('t', 'df', 'p.value', 'std.err')
-}
-
-pseudo_markers_manual$adj.p.value <- p.adjust(pseudo_markers_manual$p.value, method = 'BH')
-pseudo_markers_manual$logFC <- log(rowSums(expm1(GetAssayData(pseudobulk_norm)[ , (half.id + 1) : ncol(pseudobulk_norm)])) / rowSums(expm1(GetAssayData(pseudobulk_norm)[ , 1 : half.id])))
-pseudo_markers_manual <- pseudo_markers_manual %>%
-    mutate(gene = rownames(.)) %>%
+pseudo_markers_manual <- find_markers_bulk(pseudobulk_norm, stat.test) %>%
     arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
-    subset(logFC > 0 & adj.p.value < 0.05)
+    mutate(gene = row.names(.)) %>%
+    subset(logFC > 0)
 
 
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
-gammax <- ncol(sc_clustered_data) / length(unique(Idents(sc_clustered_data))) / 3
-if(gammax > 1000){
-    gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000)
-}else{
-    gammas <- c(1, 2, 5, 10, 50, 100, 200)
-}
+gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000, 5000, 10000, Inf)
+
 memory.limit(size=56000)
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, 
                                 resetData = resetSuper,
                                 weighted = weighted,
                                 test.use = stat.test)
-
+if(length(super_markers) == length(gammas)){
+    names(super_markers)[length(gammas)] <- 20000
+}
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
     ggtitle('Volcano plot of SuperCells at level gamma = 5') +
     theme(plot.title = element_text(hjust = 0.5))
 
-super_markers <- lapply(super_markers ,function(x) x %>% 
-                            subset(adj.p.value < 0.05 & logFC > 0))
+super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
+
+# ---------------------------------------------------------
+# DE supercells DESeq2
+# ---------------------------------------------------------
+super_markers_des <- list()
+
+reformated_data <- reIdent(sc_filtered_data, 
+                           labels = c('treat', 'ctrl'), 
+                           replicate = T)
+for(gamma in c(5, 10, 50, 100, 200, 1000, 2000, 10000, 20000)){
+    print(gamma)
+    super <-  SCimplify(GetAssayData(reformated_data),
+                        cell.annotation = Idents(reformated_data),
+                        k.knn = 5,
+                        gamma = gamma,
+                        n.var.genes = 1000,
+                        directed = FALSE
+    )
+    
+    super$cell_line <- supercell_assign(clusters = Idents(reformated_data),
+                                        supercell_membership = super$membership,
+                                        method = "jaccard")
+    
+    super$GE <- supercell_GE(GetAssayData(reformated_data), super$membership)
+    print(dim(super$GE))
+    colData <- rep('ctrl', ncol(super$GE))
+    colData[grep('treat|lps4', super$cell_line)] <- 'treat'
+    super$design <- data.frame(colData)
+    colnames(super$design) <- 'design'
+    dds <- DESeqDataSetFromMatrix(floor(sweep(super$GE, 2, super$supercell_size, '*')),
+                                  colData = super$design, 
+                                  design = ~ design)
+    
+    dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
+    
+    
+
+    results_wald <- results(dds_wald)
+    
+    super_markers_des[[as.character(gamma)]] <- as.data.frame(results_wald) %>%
+        dplyr::rename(logFC = log2FoldChange, adj.p.value = padj) %>% 
+        mutate(gene = rownames(.))
+}
+
+
+if(length(super_markers_des) == length(gammas)){
+    names(super_markers_des)[length(gammas)] <- 20000
+}
+
+super_markers_des <- lapply(super_markers_des, function(x) x %>% 
+                                arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%
+                                subset(logFC > 0))
 
 
 # ---------------------------------------------------------
@@ -248,8 +260,17 @@ single_markers <- singleCell_DE(sc_clustered_data, var.features = 500,
 volcano_plot(single_markers, logfc.thres = 0.5) +
     ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
     theme(plot.title = element_text(hjust = 0.5))
-single_markers <- single_markers %>%
-    subset(adj.p.value < 0.05 & logFC > 0)
+
+single_markers <- single_markers %>% subset(logFC > 0)
+
+# ---------------------------------------------------------
+# DE single cells (manual)
+# ---------------------------------------------------------
+manual_single_markers <- find_markers_bulk(sc_clustered_data, stat.test)
+manual_single_markers <- manual_single_markers %>% 
+    arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
+    mutate(gene = rownames(.)) %>%
+    subset(logFC > 0)
 
 
 # ---------------------------------------------------------
@@ -261,18 +282,20 @@ score_results <- compute_score(super_markers, manual_bulk_markers, 'aucc') %>%
 plot_score_results(score_results)
 score_results <- compute_score(super_markers, manual_bulk_markers, 'tpr')
 
+eff <- 'DESeq2'
 
-plot_matches(super_markers, 
+plot_matches(super_markers_des, 
              list(single = single_markers, 
                bulk_man = manual_bulk_markers, 
                bulk_des = bulk_markers$`DESeq2-Wald`,
                pseudo_des = pseudo_markers2$`DESeq2-Wald`,
-               pseudo_man = pseudo_markers_manual ),
-             c(sprintf('SuperCells (%s-test) vs single cells (%s-test seurat)', stat.test, stat.test), 
-               sprintf('SuperCells (%s-test) vs Bulk (manual %s-test)', stat.test, stat.test),
-               sprintf('SuperCells (%s-test) vs Bulk (DESeq2)', stat.test),
-               sprintf('SuperCells (%s-test) vs pseudo-bulk (DESeq2)', stat.test),
-               sprintf('SuperCells (%s-test) vs pseudo-bulk (manual %s test)', stat.test, stat.test)))
+               pseudo_man = pseudo_markers_manual),
+             c(sprintf('SuperCells (%s-test) vs single cells (%s-test)', eff, stat.test), 
+               sprintf('SuperCells (%s-test) vs Bulk (%s-test)', eff, stat.test),
+               sprintf('SuperCells (%s-test) vs Bulk (DESeq2)', eff),
+               sprintf('SuperCells (%s-test) vs pseudo-bulk (DESeq2)', eff),
+               sprintf('SuperCells (%s-test) vs pseudo-bulk (%s test)', eff, stat.test)),
+             'match')
 
 # ---------------------------------------------------------
 # LogFC - LogFC graphs
@@ -397,4 +420,30 @@ ggplot(data = df, aes(x = factor(size, level = level_order), y = values, fill = 
     theme(axis.text=element_text(size=12),
           axis.title=element_text(size=14,face="bold"))
 
-           
+# ---------------------------------------------------------
+# Fraction
+# ---------------------------------------------------------
+frac <- fractionGenes(list(single = single_markers, 
+                   super5 = super_markers$`5`, 
+                   super10 = super_markers$`10`, 
+                   bulk = bulk_markers$`DESeq2-Wald`))
+
+fracPercent <- sapply(frac, function(x) table(x)/length(x) * 100)
+fracPercent <- lapply(seq_along(fracPercent), function(i) setNames(data.frame(fracPercent[i]), 
+                                                    c('n', names(fracPercent[i]))))
+
+mydf <- fracPercent[[1]]
+for(i in 2:length(fracPercent))
+{
+    mydf <- merge(mydf, fracPercent[[i]], by = 'n', all = T)
+}
+rownames(mydf) <- mydf$n
+mydf$n <- NULL
+mydf <- mydf %>%
+    as.matrix() %>%
+    melt()
+ggplot(data = mydf, aes(x = Var2, y = value, fill = Var1)) + 
+    geom_bar(stat = 'identity', position = 'stack') +
+    xlab('') +
+    ylab('Percentage') +
+    ggtitle('Repartition of DE genes found among different sources')

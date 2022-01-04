@@ -8,17 +8,12 @@ library(SuperCell)
 superCells_DE <- function(data,  # gene expression matrix counts
                           gamma,  # graining level of super cells
                           weighted,  # whether to perform weighted t-tests or not
-                          test.use
+                          test.use,
+                          by.group = F
 )
 {
     
     super <- superCells_GE(data, gamma)
-    #supercell_plot(super$graph.supercells, 
-    #               group = super$cell_line, 
-    #               seed = 0, 
-    #               alpha = -pi/2,
-    #               main  = paste0("Super-cell gamma = ", gamma, " colored by cell line assignment (rotated)"))
-    # --------------------------------------------------------------------------
     
     # DE per cluster group
     clusters <- unique(super$cell_line)
@@ -29,21 +24,36 @@ superCells_DE <- function(data,  # gene expression matrix counts
     }else{
         myFunc <- supercell_FindMarkers
     }
-    DEs <- c()
-    for(i in seq_along(max(nb_groups)))
-    {
-        DE <- myFunc(ge = super$GE,
-                        supercell_size = super$supercell_size,
-                        clusters = super$cell_line,
-                        ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
-                        ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
-                        logfc.threshold = 0,
-                        only.pos = F,
-                        do.bootstrapping = F,
-                        test.use = test.use) %>%
-                mutate(gene = rownames(.))
+    
+    if(by.group){
         
-        DEs <- rbind(DEs, DE)
+        DEs <- c()
+        for(i in seq_along(max(nb_groups)))
+        {
+            DE <- myFunc(ge = super$GE,
+                            supercell_size = super$supercell_size,
+                            clusters = super$cell_line,
+                            ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
+                            ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
+                            logfc.threshold = 0,
+                            only.pos = F,
+                            do.bootstrapping = F,
+                            test.use = test.use) %>%
+                    mutate(gene = rownames(.))
+            
+            DEs <- rbind(DEs, DE)
+        }
+    }else{
+        DEs <- myFunc(ge = super$GE,
+                     supercell_size = super$supercell_size,
+                     clusters = super$cell_line,
+                     ident.1 = clusters[grep('^treat', clusters)],
+                     ident.2 = clusters[grep('^ctrl', clusters)],
+                     logfc.threshold = 0,
+                     only.pos = F,
+                     do.bootstrapping = F,
+                     test.use = test.use) %>%
+            mutate(gene = rownames(.))
     }
     DEs <- DEs %>%
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%

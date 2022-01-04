@@ -1,0 +1,27 @@
+default:
+    filename: 'Hagai2018_mouse-lps.rds'
+
+    ctrl_vs_treat:
+      ctrl: 'unst'
+      treat: 'lps4'
+      
+    statTest: 't'
+    
+    weightedSuperCells: FALSE
+    
+    intermediaryDataFile: 'hagai_mouse_lps_data'
+    
+    filteringParam:
+        doubletMaxPercentile: 0.95
+        minGenePerCell: 300
+        minCountPerCell: 500
+        minCountPerGene: 200
+        maxRiboPercent: 55
+        maxMitoPercent: 20
+        maxHbPercent: 5
+    
+    normMethod: 'seurat'
+    
+    centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
+    
+    computeCluster: FALSE

@@ -29,28 +29,31 @@ source('analysis.R')
 source('processing.R')
 
 
+config <- config::get(file = 'hagai_mouse_lps_config.yml')
+
 # ---------------------------------------------------------
 # Meta parameters
 # ---------------------------------------------------------
-filename <- 'Hagai2018_mouse-lps.rds'
+filename <- config$filename
 
-ctrl_vs_treat <- list(ctrl = 'unst',
-                      treat = 'lps4')
+ctrl_vs_treat <- list(ctrl = config$ctrl_vs_treat$ctrl,
+                      treat = config$ctrl_vs_treat$treat)
 
-stat.test <- 't'
-weighted <- F
+stat.test <- config$statTest
+weighted <- config$weightedSuperCells
 resetSingle <- F
 resetSuper <- F
+resetSuperDes <- T
 
-filtering_param <- list(max.doublet.percentile = 0.95,
-                        min.gene.per.cell = 300,
-                        min.count.per.cell = 500,
-                        min.count.per.genes = 200,
-                        max.ribo.percent = 55,
-                        max.mito.percent = 20,
-                        max.hb.percent = 5)
+filtering_param <- list(max.doublet.percentile = config$filteringParam$doubletMaxPercentile,
+                        min.gene.per.cell = config$filteringParam$minGenePerCell,
+                        min.count.per.cell = config$filteringParam$minCountPerCell,
+                        min.count.per.genes = config$filteringParam$minCountPerGene,
+                        max.ribo.percent = config$filteringParam$maxRiboPercent,
+                        max.mito.percent = config$filteringParam$maxMitoPercent,
+                        max.hb.percent = config$filteringParam$maxHbPercent)
 
-normMethod <- 'seurat'
+normMethod <- config$normMethod
 #filtering_param_others <- list(max.doublet.percentile = 0.95,
 #                               min.gene.per.cell = 300,
 #                               min.count.per.cell = 500,
@@ -59,9 +62,9 @@ normMethod <- 'seurat'
 #                               max.mito.percent = 20,
 #                               max.hb.percent = 5)
 
-centers <- matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
+centers <- config$centers
 
-compute_cluter <- F
+compute_cluter <- config$computeCluster
 
 
 # ---------------------------------------------------------
@@ -214,16 +217,14 @@ pseudo_markers_manual <- find_markers_bulk(pseudobulk_norm, stat.test) %>%
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
-gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000, 5000, 10000, Inf)
+gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000, 5000, 10000, 20000)
 
 memory.limit(size=56000)
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, 
                                 resetData = resetSuper,
                                 weighted = weighted,
                                 test.use = stat.test)
-if(length(super_markers) == length(gammas)){
-    names(super_markers)[length(gammas)] <- 20000
-}
+
 volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
     ggtitle('Volcano plot of SuperCells at level gamma = 5') +
     theme(plot.title = element_text(hjust = 0.5))

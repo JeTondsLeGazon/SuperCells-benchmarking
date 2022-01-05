@@ -180,7 +180,18 @@ saveRDS(sc_filtered_data, file = file.path(data_folder, "singleCellFiltered.rds"
 saveRDS(pseudobulk_data, file = file.path(data_folder, "pseudoBulk.rds"))
 saveRDS(pseudobulk_norm, file = file.path(data_folder, "pseudoBulkNormalized.rds"))
 saveRDS(bulk_filtered_data, file = file.path(data_folder, "bulkFiltered.rds"))
-saveRDS(bulk_filtered_data, file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+saveRDS(bdata, file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+
+
+# ---------------------------------------------------------
+# Data loadings
+# ---------------------------------------------------------
+sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
+sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
+pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulk.rds"))
+pseudobulk_norm <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
+bulk_filtered_data <- readRDS(file = file.path(data_folder, "bulkFiltered.rds"))
+bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
 # ---------------------------------------------------------
 # DE bulk
@@ -249,7 +260,6 @@ super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
 super_markers_des <- list()
 
 for(gamma in gammas[c(-1,-2)]){
-    print(gamma)
     super <-  SCimplify(GetAssayData(sc_filtered_data),
                         cell.annotation = sc_filtered_data$sample,
                         k.knn = 5,
@@ -263,7 +273,6 @@ for(gamma in gammas[c(-1,-2)]){
                                         method = "jaccard")
     
     super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
-    print(dim(super$GE))
     colData <- rep('ctrl', ncol(super$GE))
     colData[grep('treat', super$cell_line)] <- 'treat'
     super$design <- data.frame(colData)

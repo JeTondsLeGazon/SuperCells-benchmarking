@@ -68,51 +68,45 @@ compute_DE_bulk <- function(data, meta){
 
 # Computes differential expression for single-cell data
 singleCell_DE <- function(sc_data, var.features, 
-                          resetData = F, 
                           stat.test = 't', 
                           by.group = F){
     
     file.name <- 'singleCell.RData'
-    if(resetData){
-        sc_data <- FindVariableFeatures(sc_data, nfeatures = var.features)
+
+    sc_data <- FindVariableFeatures(sc_data, nfeatures = var.features)
+    
+    if(by.group){
+        # Identify number of groups for paired test
+        nb_groups <- sapply(levels(sc_data), 
+                            function(x) as.numeric(str_sub(x, -1, -1)))
         
-        if(by.group){
-            # Identify number of groups for paired test
-            nb_groups <- sapply(levels(sc_data), 
-                                function(x) as.numeric(str_sub(x, -1, -1)))
-            
-            single_markers <- c()
-            for(i in seq_along(max(nb_groups))){
-                group_id_treat <- grep(paste0('treat', i), levels(sc_data))
-                group_id_ctrl <- grep(paste0('ctrl', i), levels(sc_data))
-                markers <- FindMarkers(sc_data,
-                                       ident.1 = levels(sc_data)[group_id_treat],
-                                       ident.2 = levels(sc_data)[group_id_ctrl],
-                                       only.pos = F, 
-                                       logfc.threshold = 0, 
-                                       test.use = stat.test) %>%
-                    mutate(gene = rownames(.))
-                single_markers <- rbind(single_markers, markers)
-            }
-        }else{
-            single_markers <- FindMarkers(sc_data,
-                                   ident.1 = levels(sc_clustered_data)[grep('treat', levels(sc_clustered_data))],
-                                   ident.2 = levels(sc_clustered_data)[grep('ctrl', levels(sc_clustered_data))],
+        single_markers <- c()
+        for(i in seq_along(max(nb_groups))){
+            group_id_treat <- grep(paste0('treat', i), levels(sc_data))
+            group_id_ctrl <- grep(paste0('ctrl', i), levels(sc_data))
+            markers <- FindMarkers(sc_data,
+                                   ident.1 = levels(sc_data)[group_id_treat],
+                                   ident.2 = levels(sc_data)[group_id_ctrl],
                                    only.pos = F, 
                                    logfc.threshold = 0, 
                                    test.use = stat.test) %>%
                 mutate(gene = rownames(.))
+            single_markers <- rbind(single_markers, markers)
         }
+    }else{
+        single_markers <- FindMarkers(sc_data,
+                               ident.1 = levels(sc_clustered_data)[grep('treat', levels(sc_clustered_data))],
+                               ident.2 = levels(sc_clustered_data)[grep('ctrl', levels(sc_clustered_data))],
+                               only.pos = F, 
+                               logfc.threshold = 0, 
+                               test.use = stat.test) %>%
+            mutate(gene = rownames(.))
+    }
     
     single_markers <- single_markers %>%
         dplyr::rename(logFC = avg_log2FC, adj.p.value = p_val_adj) %>%
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
         subset(!duplicated(.$gene))
-    saveRDS(single_markers, file.path('./data', file.name))
-    }else{
-        
-        single_markers <- readRDS(file.path('./data', file.name))
-    }
     
     return(single_markers)
 }

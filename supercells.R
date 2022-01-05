@@ -67,24 +67,16 @@ superCells_DE <- function(data,  # gene expression matrix counts
 superCells_DEs <- function(data,  # normalized logcounts seurat object
                            gammas,  # list of graning levels to use
                            knn,  # number of nearest neighbors to use
-                           resetData = F,
                            weighted = F,
                            test.use = 't') 
 {
-    file.name <- 'superCells.RData'
-    if(resetData){
-        super_DEs <- list()
-        for(gam in gammas){
-                super_res <- superCells_DE(data,
-                                           gamma = gam,
-                                           weighted = weighted,
-                                           test.use = test.use)
-            super_DEs[[as.character(gam)]] <- super_res
-        }
-        saveRDS(super_DEs, file.path('./data', file.name))
-    }
-    else{
-        super_DEs <- readRDS(file.path('./data', file.name))
+    super_DEs <- list()
+    for(gam in gammas){
+            super_res <- superCells_DE(data,
+                                       gamma = gam,
+                                       weighted = weighted,
+                                       test.use = test.use)
+        super_DEs[[as.character(gam)]] <- super_res
     }
     return(super_DEs)
 }

@@ -1,6 +1,8 @@
 default:
     filename: 'Hagai2018_mouse-lps.rds'
-
+    intermediaryDataFile: 'hagai_mouse_lps_data'
+    resultsFile: 'hagai_mouse_lps_results'
+    
     ctrl_vs_treat:
       ctrl: 'unst'
       treat: 'lps4'
@@ -9,7 +11,6 @@ default:
     
     weightedSuperCells: FALSE
     
-    intermediaryDataFile: 'hagai_mouse_lps_data'
     
     filteringParam:
         doubletMaxPercentile: 0.95
@@ -25,3 +26,16 @@ default:
     centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
     
     computeCluster: FALSE
+    
+    gammas: !expr c(1, 2, 5, 10, 50, 100, 500, 2000, 10000, 20000)
+    
+    # Which DEs should be (re)computed
+    DE:
+        computeSingle: TRUE
+        computeSuper: TRUE
+        computeSingleManual: TRUE
+        computeSuperDes: TRUE
+        computePseudo: TRUE
+        computePseudoManual: TRUE
+        computeBulk: TRUE
+        computeBulkManual: TRUE

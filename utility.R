@@ -223,7 +223,7 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
 
 
 # Compute scores of DE genes correlated between superCells and other markers
-plot_results <- function(supercell_res, others, legends = NULL, score.type = 'match'){
+plot_results <- function(supercell_res, others, super.type, score.type = 'match'){
     gammas <- as.numeric(names(supercell_res))
     plot(NULL, 
          ylim=c(0,1), 
@@ -231,6 +231,9 @@ plot_results <- function(supercell_res, others, legends = NULL, score.type = 'ma
          ylab="Scores", 
          xlab="Gammas", 
          log = 'x')
+    
+    # supercell legend
+    super_legend <- sprintf('SuperCells (%s)', super.type)
     
     # score to use
     score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
@@ -248,10 +251,12 @@ plot_results <- function(supercell_res, others, legends = NULL, score.type = 'ma
     }
     
     chr <- c(8, 15, 16, 17, 18, 4, 3)
+    legends <- c()
     for (i in seq_along(others)){
         matching <- unlist(lapply(supercell_res, function(x) score_func(others[[i]], x)))
         points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
         lines(gammas, matching, col = i, lwd = 1.5)
+        legends <- c(legends, paste(super_legend, names(others)[i], sep = ' vs '))
     }
     legend('bottomleft', 
            legend = legends, 

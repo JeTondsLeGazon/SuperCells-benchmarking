@@ -86,19 +86,14 @@ single_markers <- readRDS(file.path(results_folder, "singleMarkers.rds"))
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-# TODO: change legend in args -> function should do this
 plot_results(super_markers_des, 
-             list(single = single_markers, 
-                  bulk_man = pseudo_markers_manual, 
-                  bulk_des = bulk_markers$`DESeq2-Wald`,
-                  pseudo_des = pseudo_markers$`DESeq2-Wald`,
-                  pseudo_man = pseudo_markers_manual),
-             c(sprintf('SuperCells (%s-test) vs single cells (%s-test)', stat.test, stat.test), 
-               sprintf('SuperCells (%s-test) vs Bulk (%s-test)', stat.test, stat.test),
-               sprintf('SuperCells (%s-test) vs Bulk (DESeq2)', stat.test),
-               sprintf('SuperCells (%s-test) vs pseudo-bulk (DESeq2)', stat.test),
-               sprintf('SuperCells (%s-test) vs pseudo-bulk (%s test)', stat.test, stat.test)),
-             'tpr')
+             list('single cells (t-test)' = single_markers, 
+                  'bulk (t-test)' = pseudo_markers_manual, 
+                  'bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
+                  'pseudobulk (DESeq2)' = pseudo_markers$`DESeq2-Wald`,
+                  'pseudobulk (t-test)' = pseudo_markers_manual),
+             super.type = 'DESeq2',
+             score.type = 'tpr')
 
 # ---------------------------------------------------------
 # LogFC - LogFC graphs

@@ -38,7 +38,7 @@ library(zoo)
 
 source('utility.R')
 source('analysis.R')
-
+source('supercells.R')
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -136,8 +136,8 @@ plot(NULL,
      xlab = 'Unweighted -log10(p values)', 
      ylab = 'Weighted -log10(p values)',
      main = 'P values of t-test vs weighted t-test at different gammas',
-     xlim = c(0, 50), 
-     ylim = c(0, 50))
+     xlim = c(0, 10), 
+     ylim = c(0, 10))
 colors <- c('red', 'blue', 'green', 'black')
 legend_names <- c()
 for(i in 1:4){
@@ -159,74 +159,72 @@ legend('topright', legend = legend_names, col = colors, lty = 1)
 # ---------------------------------------------------------
 # Selection of genes found as DE by bulk and pseudo bulk -> gt genes that should
 # also be found at supercell level
-
-
-df_seurat <- list(single = sc_clustered_data,
-                  pseudo = pseudobulk_norm,
-                  bulk = bdata)
-df_super <- list(super5 = superCells_GE(sc_clustered_data, 5),
-                 super50 = superCells_GE(sc_clustered_data, 50),
-                 super200 = superCells_GE(sc_clustered_data, 200))#,
-#super1000 = superCells_GE(sc_clustered_data, 1000))
-
-
-gt.genes <- intersect(bulk_markers$`DESeq2-Wald`$gene, 
-                      pseudo_markers2$`DESeq2-Wald`$gene)
-not_in_single <- gt.genes[!(gt.genes %in% single_markers$gene)]
-use.genes <- sample(not_in_single, 10)
-use.genes <- c('Dyrk2')
-# Same but with ggplot format
-all.values <- c()
-all.cells.levels <- c()
-all.grp.levels <- c()
-for(sub in names(df_seurat)){
-    for(cond in c('treat|LPS4', 'ctrl|UNST')){
-        values <- GetAssayData(df_seurat[[sub]])[use.genes[1], grep(cond, Idents(df_seurat[[sub]]))]
-        cell.levels <- rep(sub, length(values))
-        grp.levels <- rep(strsplit(cond, '|', fixed = T)[[1]][1], length(values))
-        all.values <- c(all.values, values)
-        all.cells.levels <- c(all.cells.levels, cell.levels)
-        all.grp.levels <- c(all.grp.levels, grp.levels)
-    }
-}
-
-for(sub in names(df_super)){
-    for(cond in c('treat|LPS4', 'ctrl|UNST')){
-        values <- df_super[[sub]]$GE[match(use.genes[1], rownames(sc_clustered_data)), grep(cond, df_super[[sub]]$SC.cell.annotation.)]
-        cell.levels <- rep(sub, length(values))
-        grp.levels <- rep(strsplit(cond, '|', fixed = T)[[1]][1], length(values))
-        all.values <- c(all.values, values)
-        all.cells.levels <- c(all.cells.levels, cell.levels)
-        all.grp.levels <- c(all.grp.levels, grp.levels)
-    }
-}
-df <- data.frame(values = all.values, grp = all.grp.levels, size = all.cells.levels)
-txt_df <- data.frame(size = unique(df$size), 
-                     stats = matrix(c(single_markers[use.genes[1], c('logFC', 'adj.p.value')],
-                                      pseudo_markers2$`DESeq2-Wald`[use.genes[1], c('logFC', 'adj.p.value')],
-                                      bulk_markers$`DESeq2-Wald`[use.genes[1], c('logFC', 'adj.p.value')],
-                                      super_markers$`5`[use.genes[1], c('logFC', 'adj.p.value')],
-                                      super_markers$`50`[use.genes[1], c('logFC', 'adj.p.value')],
-                                      super_markers$`200`[use.genes[1], c('logFC', 'adj.p.value')]), byrow = T, ncol = 2),
-                     vals = rep(5, length(unique(df$size))))
-level_order <- c('single', 'super5', 'super50', 'super200', 'pseudo', 'bulk')
-ggplot(data = df, aes(x = factor(size, level = level_order), y = values, fill = grp)) +
-    geom_boxplot() +
-    xlab('') +
-    scale_y_log10() +
-    ylab('log of logcounts') +
-    ggtitle(use.genes[1]) +
-    theme_classic() +
-    annotate('text', x = factor(txt_df$size, level = level_order), y = txt_df$vals, label = paste0('logFC: ', round(unlist(txt_df$stats.1), 2), '\n', 'p value: ', format(txt_df$stats.2, scientific = T))) +
-    theme(axis.text=element_text(size=12),
-          axis.title=element_text(size=14,face="bold"))
+# TODO: update this deprecated functionnality
+# 
+# df_seurat <- list(single = sc_clustered_data,
+#                   pseudo = pseudobulk_norm,
+#                   bulk = bdata)
+# df_super <- list(super5 = superCells_GE(sc_clustered_data, 5),
+#                  super50 = superCells_GE(sc_clustered_data, 50),
+#                  super200 = superCells_GE(sc_clustered_data, 200))
+# 
+# gt.genes <- intersect(bulk_markers$`DESeq2-Wald`$gene, 
+#                       pseudo_markers$`DESeq2-Wald`$gene)
+# not_in_single <- gt.genes[!(gt.genes %in% single_markers$gene)]
+# use.genes <- sample(not_in_single, 10)
+# use.genes <- c('Dyrk2')
+# # Same but with ggplot format
+# all.values <- c()
+# all.cells.levels <- c()
+# all.grp.levels <- c()
+# for(sub in names(df_seurat)){
+#     for(cond in c('treat|LPS4', 'ctrl|UNST')){
+#         values <- GetAssayData(df_seurat[[sub]])[use.genes[1], grep(cond, Idents(df_seurat[[sub]]))]
+#         cell.levels <- rep(sub, length(values))
+#         grp.levels <- rep(strsplit(cond, '|', fixed = T)[[1]][1], length(values))
+#         all.values <- c(all.values, values)
+#         all.cells.levels <- c(all.cells.levels, cell.levels)
+#         all.grp.levels <- c(all.grp.levels, grp.levels)
+#     }
+# }
+# 
+# for(sub in names(df_super)){
+#     for(cond in c('treat|LPS4', 'ctrl|UNST')){
+#         values <- df_super[[sub]]$GE[match(use.genes[1], rownames(sc_clustered_data)), grep(cond, df_super[[sub]]$SC.cell.annotation.)]
+#         cell.levels <- rep(sub, length(values))
+#         grp.levels <- rep(strsplit(cond, '|', fixed = T)[[1]][1], length(values))
+#         all.values <- c(all.values, values)
+#         all.cells.levels <- c(all.cells.levels, cell.levels)
+#         all.grp.levels <- c(all.grp.levels, grp.levels)
+#     }
+# }
+# df <- data.frame(values = all.values, grp = all.grp.levels, size = all.cells.levels)
+# txt_df <- data.frame(size = unique(df$size), 
+#                      stats = matrix(c(single_markers[use.genes[1], c('logFC', 'adj.p.value')],
+#                                       pseudo_markers$`DESeq2-Wald`[use.genes[1], c('logFC', 'adj.p.value')],
+#                                       bulk_markers$`DESeq2-Wald`[use.genes[1], c('logFC', 'adj.p.value')],
+#                                       super_markers$`5`[use.genes[1], c('logFC', 'adj.p.value')],
+#                                       super_markers$`50`[use.genes[1], c('logFC', 'adj.p.value')],
+#                                       super_markers$`200`[use.genes[1], c('logFC', 'adj.p.value')]), byrow = T, ncol = 2),
+#                      vals = rep(5, length(unique(df$size))))
+# level_order <- c('single', 'super5', 'super50', 'super200', 'pseudo', 'bulk')
+# ggplot(data = df, aes(x = factor(size, level = level_order), y = values, fill = grp)) +
+#     geom_boxplot() +
+#     xlab('') +
+#     scale_y_log10() +
+#     ylab('log of logcounts') +
+#     ggtitle(use.genes[1]) +
+#     theme_classic() +
+#     annotate('text', x = factor(txt_df$size, level = level_order), y = txt_df$vals, label = paste0('logFC: ', round(unlist(txt_df$stats.1), 2), '\n', 'p value: ', format(txt_df$stats.2, scientific = T))) +
+#     theme(axis.text=element_text(size=12),
+#           axis.title=element_text(size=14,face="bold"))
 
 # ---------------------------------------------------------
 # Fraction
 # ---------------------------------------------------------
 frac <- fractionGenes(list(single = single_markers, 
-                           super5 = super_markers$`5`, 
-                           super10 = super_markers$`10`, 
+                           super10 = super_markers$`5`, 
+                           super100 = super_markers$`100`, 
                            bulk = bulk_markers$`DESeq2-Wald`))
 
 fracPercent <- sapply(frac, function(x) table(x)/length(x) * 100)

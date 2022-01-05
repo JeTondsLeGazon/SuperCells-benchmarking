@@ -10,7 +10,6 @@ default:
     weightedSuperCells: FALSE
     
     intermediaryDataFile: 'hagai_mouse_lps_data'
-    resultsFile: 'hagai_mouse_lps_results'
     
     filteringParam:
         doubletMaxPercentile: 0.95
@@ -26,5 +25,3 @@ default:
     centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
     
     computeCluster: FALSE
-
-    gammas: !expr c(1, 2, 5, 10, 50, 100, 200, 1000, 5000, 10000, 20000)

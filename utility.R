@@ -200,9 +200,9 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
 
     rank1 <- match(concerned_genes, test_markers$gene)
     rank2 <- match(concerned_genes, super_markers$`1`$gene)
-    rank3 <- match(concerned_genes, super_markers$`2`$gene)
-    rank4 <- match(concerned_genes, super_markers$`5`$gene)
-    rank5 <- match(concerned_genes, super_markers$`10`$gene)
+    rank3 <- match(concerned_genes, super_markers$`5`$gene)
+    rank4 <- match(concerned_genes, super_markers$`50`$gene)
+    rank5 <- match(concerned_genes, super_markers$`1000`$gene)
     
     subplot <- function(x, y, g){
         qplot(x, 
@@ -215,37 +215,52 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
             ylim(c(0, 100))
     }
     p1 <- subplot(rank1, rank2, 1)
-    p2 <- subplot(rank1, rank3, 2)
-    p3 <- subplot(rank1, rank4, 5)
-    p4 <- subplot(rank1, rank5, 10)
+    p2 <- subplot(rank1, rank3, 5)
+    p3 <- subplot(rank1, rank4, 50)
+    p4 <- subplot(rank1, rank5, 1000)
     ggarrange(p1, p2, p3, p4)
 }
 
 
-# Check percentage of matching top n DE genes between supercells and other DEs
-plot_matches <- function(supercell_res, others, legends = NULL, score.type = 'match'){
+# Compute scores of DE genes correlated between superCells and other markers
+plot_results <- function(supercell_res, others, legends = NULL, score.type = 'match'){
     gammas <- as.numeric(names(supercell_res))
-    plot(NULL, ylim=c(0,1), xlim=c(min(gammas), max(gammas)), 
-         ylab="Scores", xlab="Gammas", log = 'x')
+    plot(NULL, 
+         ylim=c(0,1), 
+         xlim=c(min(gammas), max(gammas)), 
+         ylab="Scores", 
+         xlab="Gammas", 
+         log = 'x')
+    
+    # score to use
+    score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
+    if(score.type == 'match'){
+        supercell_res <- lapply(supercell_res, function(x) x[1:100, ])
+        others <- lapply(others, function(x) x[1:100, ])
+    }
+    
+    if(score.type == 'match'){
+        title <- 'True positive rate among the top 100 DE genes between superCell and Ground truth'
+    }else if (score.type == 'auc'){
+        title <- 'AUROC of DE genes between superCell and Ground truth'
+    }else if(score.type == 'tpr'){
+        title <- 'True positive rate of DE genes between superCell and Ground truth'
+    }
+    
     chr <- c(8, 15, 16, 17, 18, 4, 3)
     for (i in seq_along(others)){
-        if(score.type == 'match'){
-            matching <- unlist(lapply(supercell_res, function(x) gene_match(x$gene, others[[i]]$gene)))
-            title <- 'True positive rate among the top 100 DE genes between superCell and Ground truth'
-        }else if (score.type == 'auc'){
-            matching <- unlist(lapply(supercell_res, function(x) auc(others[[i]], x)))
-            title <- 'AUROC of DE genes between superCell and Ground truth'
-        }else if(score.type == 'tpr'){
-            matching <- unlist(lapply(supercell_res, function(x) tpr(others[[i]], x)))
-            title <- 'True positive rate of DE genes between superCell and Ground truth'
-        }
+        matching <- unlist(lapply(supercell_res, function(x) score_func(others[[i]], x)))
         points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
         lines(gammas, matching, col = i, lwd = 1.5)
     }
     legend('bottomleft', 
-           legend = legends, col = seq_along(others), pch = chr[seq_along(others)])
+           legend = legends, 
+           col = seq_along(others), 
+           pch = chr[seq_along(others)])
     title(title)
     grid()
+    
+    # score for singlets
     if(F){
         scores <- c()
         names <- c()

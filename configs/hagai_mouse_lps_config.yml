@@ -9,9 +9,6 @@ default:
       
     statTest: 't'
     
-    weightedSuperCells: FALSE
-    
-    
     filteringParam:
         doubletMaxPercentile: 0.95
         minGenePerCell: 300
@@ -31,11 +28,11 @@ default:
     
     # Which DEs should be (re)computed
     DE:
-        computeSingle: TRUE
-        computeSuper: TRUE
-        computeSingleManual: TRUE
-        computeSuperDes: TRUE
-        computePseudo: TRUE
-        computePseudoManual: TRUE
-        computeBulk: TRUE
-        computeBulkManual: TRUE
+        computeSingle: F
+        computeSuper: F
+        computeSingleManual: F
+        computeSuperDes: F
+        computePseudo: F
+        computePseudoManual: F
+        computeBulk: F
+        computeBulkManual: F

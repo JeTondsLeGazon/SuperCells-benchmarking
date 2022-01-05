@@ -52,7 +52,6 @@ results_folder <- file.path("data", config$resultsFile)
 dir.create(results_folder, showWarnings = F, recursive = T)
 
 stat.test <- config$statTest
-weighted <- config$weightedSuperCells
 
 # Should we compute these DE ?
 computeSingle <- config$DE$computeSingle
@@ -143,7 +142,7 @@ if(computePseudoManual){
 if(computeSuper){
     memory.limit(size=56000)
     super_markers <- superCells_DEs(sc_clustered_data, gammas, 5,
-                                    weighted = weighted,
+                                    weighted = F,
                                     test.use = stat.test)
     
     volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
@@ -152,6 +151,14 @@ if(computeSuper){
     
     super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
     saveRDS(super_markers, file.path(results_folder, "superMarkers.rds"))
+    
+    super_markers_weighted <- superCells_DEs(sc_clustered_data, gammas, 5,
+                                    weighted = T,
+                                    test.use = stat.test)
+    
+    super_markers_weighted <- lapply(super_markers_weighted, 
+                                     function(x) subset(x, logFC > 0))
+    saveRDS(super_markers_weighted, file.path(results_folder, "superMarkersWeighted.rds"))
 }
 
 
@@ -226,6 +233,6 @@ if(computeSingleManual){
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
         mutate(gene = rownames(.)) %>%
         subset(logFC > 0)
-    saveRDS(single_markers, file.path(results_folder, "singleMarkersManual.rds"))
+    saveRDS(manual_single_markers, file.path(results_folder, "singleMarkersManual.rds"))
     
 }

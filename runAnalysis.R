@@ -43,7 +43,7 @@ source('supercells.R')
 # ---------------------------------------------------------
 # Meta parameters
 # ---------------------------------------------------------
-config <- config::get(file = 'configs/hagai_mouse_lps_config.yml')
+config <- config::get(file = args[1])
 
 filename <- config$filename
 data_folder <- file.path("data", config$intermediaryDataFile)

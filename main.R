@@ -36,6 +36,7 @@ config <- config::get(file = 'hagai_mouse_lps_config.yml')
 # ---------------------------------------------------------
 filename <- config$filename
 data_folder <- file.path("data", config$intermediaryDataFile)
+results_folder <- file.path("data", config$resultsFile)
 
 ctrl_vs_treat <- list(ctrl = config$ctrl_vs_treat$ctrl,
                       treat = config$ctrl_vs_treat$treat)
@@ -67,6 +68,7 @@ centers <- config$centers
 
 compute_cluter <- config$computeCluster
 
+gammas <- config$gammas
 
 # ---------------------------------------------------------
 # Data loading
@@ -180,7 +182,6 @@ saveRDS(pseudobulk_norm, file = file.path(data_folder, "pseudoBulkNormalized.rds
 saveRDS(bulk_filtered_data, file = file.path(data_folder, "bulkFiltered.rds"))
 saveRDS(bulk_filtered_data, file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
-
 # ---------------------------------------------------------
 # DE bulk
 # ---------------------------------------------------------
@@ -230,8 +231,6 @@ pseudo_markers_manual <- find_markers_bulk(pseudobulk_norm, stat.test) %>%
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
-gammas <- c(1, 2, 5, 10, 50, 100, 200, 1000, 5000, 10000, 20000)
-
 memory.limit(size=56000)
 super_markers <- superCells_DEs(sc_clustered_data, gammas, 5, 
                                 resetData = resetSuper,
@@ -249,7 +248,7 @@ super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
 # ---------------------------------------------------------
 super_markers_des <- list()
 
-for(gamma in c(5, 10, 50, 100, 200, 1000, 2000, 10000, 20000)){
+for(gamma in gammas[c(-1,-2)]){
     print(gamma)
     super <-  SCimplify(GetAssayData(sc_filtered_data),
                         cell.annotation = sc_filtered_data$sample,
@@ -311,6 +310,19 @@ manual_single_markers <- manual_single_markers %>%
     arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
     mutate(gene = rownames(.)) %>%
     subset(logFC > 0)
+
+
+# ---------------------------------------------------------
+# saving
+# ---------------------------------------------------------
+dir.create(results_folder, showWarnings = F, recursive = T)
+saveRDS(single_markers, file.path(results_folder, "singleMarkers.rds"))
+saveRDS(super_markers, file.path(results_folder, "superMarkers.rds"))
+saveRDS(super_markers_des, file.path(results_folder, "superMarkersDes.rds"))
+saveRDS(pseudo_markers2, file.path(results_folder, "pseudoMarkers.rds"))
+saveRDS(pseudo_markers_manual, file.path(results_folder, "pseudoMarkersManual.rds"))
+saveRDS(bulk_markers, file.path(results_folder, "bulkMarkers.rds"))
+saveRDS(manual_bulk_markers, file.path(results_folder, "bulkMarkersManual.rds"))
 
 
 # ---------------------------------------------------------

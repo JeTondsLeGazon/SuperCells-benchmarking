@@ -1,4 +1,5 @@
-/data
 *.pdf
 *.Rproj
 .R*
+data/
+.Rproj.user

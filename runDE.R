@@ -65,6 +65,8 @@ computeBulkManual <- config$DE$computeBulkManual
 
 gammas <- config$gammas
 
+seed(0)
+
 
 # ---------------------------------------------------------
 # Data loadings

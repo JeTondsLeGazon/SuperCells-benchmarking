@@ -66,6 +66,8 @@ computeMeta <- config$DE$computeMeta
 
 gammas <- config$gammas
 
+seed(0)
+
 
 # ---------------------------------------------------------
 # Data loadings

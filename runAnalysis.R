@@ -54,6 +54,8 @@ weighted <- config$weightedSuperCells
 
 gammas <- config$gammas
 
+seed(0)
+
 
 # ---------------------------------------------------------
 # Data loadings
@@ -88,16 +90,19 @@ mc_markers_des <- readRDS(file.path(results_folder, 'metaCellMarkersDes.rds'))
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-plot_results(mc_markers, 
-             list('single cells (t-test)' = single_markers, 
-                  'bulk (t-test)' = pseudo_markers_manual, 
-                  'bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
-                  'pseudobulk (DESeq2)' = pseudo_markers$`DESeq2-Wald`,
-                  'pseudobulk (t-test)' = pseudo_markers_manual),
-             super.type = 'DESeq2',
-             score.type = 'tpr')
+for(score.type in c('auc', 'tpr', 'match')){
+    plot_results(super_markers_des, 
+                 list('single cells (t-test)' = single_markers, 
+                      'bulk (t-test)' = bulk_markers_manual, 
+                      'bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
+                      'pseudobulk (DESeq2)' = pseudo_markers$`DESeq2-Wald`,
+                      'pseudobulk (t-test)' = pseudo_markers_manual),
+                 super.type = 'DESeq2',
+                 score.type = score.type)
+}
+# ---------------
 
-# ---------------------------------------------------------
+------------------------------------------
 # LogFC - LogFC graphs
 # ---------------------------------------------------------
 

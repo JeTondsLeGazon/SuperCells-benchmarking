@@ -36,3 +36,4 @@ default:
         computePseudoManual: F
         computeBulk: F
         computeBulkManual: F
+        computeMeta: T

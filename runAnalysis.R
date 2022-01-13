@@ -81,12 +81,14 @@ super_markers <- readRDS(file.path(results_folder, "superMarkers.rds"))
 super_markers_weighted <- readRDS(file.path(results_folder, "superMarkersWeighted.rds"))
 super_markers_des <- readRDS(file.path(results_folder, "superMarkersDes.rds"))
 single_markers <- readRDS(file.path(results_folder, "singleMarkers.rds"))
-
+mc_markers <- readRDS(file.path(results_folder, 'metaCellMarkers.rds'))
+mc_markers_edge <- readRDS(file.path(results_folder, 'metaCellMarkersEdge.rds'))
+mc_markers_des <- readRDS(file.path(results_folder, 'metaCellMarkersDes.rds'))
 
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-plot_results(super_markers_des, 
+plot_results(mc_markers, 
              list('single cells (t-test)' = single_markers, 
                   'bulk (t-test)' = pseudo_markers_manual, 
                   'bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,

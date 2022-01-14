@@ -13,7 +13,7 @@ if (length(args) == 0){
 }
 
 # SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
-#.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
 # ---------------------------------------------------------
@@ -217,7 +217,7 @@ if(computeSuperDes){
 # DE supercells EdgeR
 # ---------------------------------------------------------
 if(computeSuperEdge){
-    for(gamma in gammas[c(-1,-2, -3, -4, -5)]){
+    for(gamma in gammas[c(-1,-2)]){
         message(sprintf('Running for gamma = %s', gamma))
         super <-  SCimplify(GetAssayData(sc_filtered_data),
                             cell.annotation = sc_filtered_data$sample,
@@ -233,14 +233,17 @@ if(computeSuperEdge){
         
         super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
         
-        edge <- DGEList(counts = super$GE, group = super$cell_line)
+        # remove last char from sample to have conditions
+        design <- sapply(super$cell_line, function(x) substr(x, 1, nchar(x) - 1))
+        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+        edge <- DGEList(counts = ge, group = design)
         edge <- calcNormFactors(edge)
-        model <- model.matrix(~super$cell_line)
+        model <- model.matrix(~design)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test
         fit <- glmQLFit(edge, model)
-        qlf <- glmQLFTest(fit,coef= 2)$table %>%
+        qlf <- glmQLFTest(fit, coef= 2)$table %>%
             data.frame() %>%
             dplyr::rename(adj.p.value = PValue) %>% 
             mutate(gene = rownames(.))  %>%
@@ -262,6 +265,12 @@ if(computeSuperEdge){
     saveRDS(super_markers_edge, file.path(results_folder, "superMarkersEdge.rds"))
 }
 
+y <- DGEList(counts = counts, group = condition)
+y <- calcNormFactors(y)
+y$samples
+design <- model.matrix(~ 0 + condition, data = y$samples)
+y <- estimateDisp(y, design, robust=TRUE) 
+fit <- glmFit(y,design)
 # ---------------------------------------------------------
 # DE single cells
 # ---------------------------------------------------------
@@ -362,6 +371,7 @@ if(F){
         super$design <- data.frame(super$cell_line)
         colnames(super$design) <- 'design'
         m <- matrix(as.numeric(floor(sweep(as.matrix(super$GE_des), 2, super$supercell_size, '*'))), ncol = ncol(super$GE_des), byrow = T) + 1
+        rownames(m) <- rownames(super$GE_des)
         dds <- DESeqDataSetFromMatrix(m,
                                       colData = super$design, 
                                       design = ~ design)
@@ -429,10 +439,12 @@ if(computeMeta){
         
         # ----------- edgeR ---------------------
         m <- matrix(as.numeric(floor(sweep(as.matrix(super$GE_des), 2, super$supercell_size, '*'))), ncol = ncol(super$GE_des), byrow = T) + 1
+        rownames(m) <- rownames(super$GE_des)
         # edgeR approach
-        edge <- DGEList(counts = m, group = super$cell_line)
+        design <- sapply(super$cell_line, function(x) substr(x, 1, nchar(x) - 1))
+        edge <- DGEList(counts = m, group = design)
         edge <- calcNormFactors(edge)
-        model <- model.matrix(~super$cell_line)
+        model <- model.matrix(~design)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test

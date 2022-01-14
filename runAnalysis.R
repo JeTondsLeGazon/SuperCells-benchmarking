@@ -102,6 +102,72 @@ for(score.type in c('auc', 'tpr', 'match')){
                  score.type = score.type)
 }
 
+su_mc <- list('super_t' = super_markers,
+              'super_t_weighted' = super_markers_weighted,
+              'super_des' = super_markers_des,
+              'super_edge' = super_markers_edge)
+mc_su <- list('mc_t' = mc_markers,
+              'mc_des' = mc_markers_des,
+              'mc_edge' = mc_markers_edge)
+comp <- list('Bulk (t-test)' = bulk_markers_manual,
+             'Bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
+             'Bulk (EdgeR)' = bulk_markers$`edgeR-QLF`)
+
+# plots different super/meta cells vs others
+plot_results_flex <- function(super_mc, others, score.type = 'match'){
+    plot(NULL, 
+         ylim=c(0,1), 
+         xlim=c(1, 20000), 
+         ylab="Scores", 
+         xlab="Gammas", 
+         log = 'x')
+    
+    # score to use
+    score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
+    if(score.type == 'match'){
+        super_mc <- lapply(super_mc, function(x) lapply(x, function(xx) xx[1:100, ]))
+        others <- lapply(others, function(x) x[1:100, ])
+    }
+    
+    
+    chr <- c(8, 15, 16, 17, 18, 4, 3)
+    legends <- c()
+    for (i in seq_along(others)){
+        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(others[[i]], x)))
+        gammas <- as.numeric(names(super_mc[[i]]))
+        points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
+        lines(gammas, matching, col = i, lwd = 1.5)
+        if(grepl('mc', names(super_mc)[i])){
+            tag <- 'MetaCells'
+        }else{
+            tag <- 'SuperCells'
+        }
+        if(grepl('t$', names(super_mc[i]))){
+            testTag <- 't-test'
+        }else if(grepl('t', names(super_mc[i]))){
+            testTag <- 'weighted t-test'
+        }else if(grepl('[Dd][Ee][Ss]', names(super_mc[i]))){
+            testTag <- 'DESeq2'
+        }else{
+            testTag <- 'EdgeR'
+        }
+        super_mc_legend <- paste0(tag, ' (', testTag, ')')
+        legends <- c(legends, paste(super_mc_legend, names(others)[i], sep = ' vs '))
+    }
+    if(score.type == 'match'){
+        title <- sprintf('True positive rate among the top 100 DE genes between %s and Ground truth', tag)
+    }else if (score.type == 'auc'){
+        title <- sprintf('AUROC of DE genes between %s and Ground truth', tag)
+    }else if(score.type == 'tpr'){
+        title <- sprintf('True positive rate of DE genes between %s and Ground truth', tag)
+    }
+    legend('bottomleft', 
+           legend = legends, 
+           col = seq_along(others), 
+           pch = chr[seq_along(others)])
+    title(title)
+    grid()
+}
 
 # ---------------------------------------------------------
 # LogFC - LogFC graphs

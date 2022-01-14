@@ -63,10 +63,11 @@ computePseudoManual <- config$DE$computePseudoManual
 computeBulk <- config$DE$computeBulk
 computeBulkManual <- config$DE$computeBulkManual
 computeMeta <- config$DE$computeMeta
+computeSuperEdge <- config$DE$computeSuperEdge
 
 gammas <- config$gammas
 
-seed(0)
+set.seed(0)
 
 
 # ---------------------------------------------------------
@@ -209,7 +210,56 @@ if(computeSuperDes){
                                     arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%
                                     subset(logFC > 0))
     saveRDS(super_markers_des, file.path(results_folder, "superMarkersDes.rds"))
-    
+}
+
+
+# ---------------------------------------------------------
+# DE supercells EdgeR
+# ---------------------------------------------------------
+if(computeSuperEdge){
+    for(gamma in gammas[c(-1,-2, -3, -4, -5)]){
+        message(sprintf('Running for gamma = %s', gamma))
+        super <-  SCimplify(GetAssayData(sc_filtered_data),
+                            cell.annotation = sc_filtered_data$sample,
+                            k.knn = 5,
+                            gamma = gamma,
+                            n.var.genes = 1000,
+                            directed = FALSE
+        )
+        
+        super$cell_line <- supercell_assign(clusters = sc_filtered_data$sample,
+                                            supercell_membership = super$membership,
+                                            method = "jaccard")
+        
+        super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
+        
+        edge <- DGEList(counts = super$GE, group = super$cell_line)
+        edge <- calcNormFactors(edge)
+        model <- model.matrix(~super$cell_line)
+        edge <- estimateDisp(edge, model)
+        
+        # Quasi likelihood test
+        fit <- glmQLFit(edge, model)
+        qlf <- glmQLFTest(fit,coef= 2)$table %>%
+            data.frame() %>%
+            dplyr::rename(adj.p.value = PValue) %>% 
+            mutate(gene = rownames(.))  %>%
+            arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%
+            subset(logFC > 0)
+        message(sprintf('Done for gamma = %s', gamma))
+        saveRDS(qlf, file.path(results_folder, sprintf("superMarkersEdge%s.rds", gamma)))
+        rm('super')
+        rm('qlf')
+    }
+    files <- list.files(results_folder)
+    files <- files[grep('superMarkersEdge.*.rds', files)]
+    super_markers_edge <- list()
+    for(f in files){
+        gamma <- str_split(str_split(f, 'Edge', simplify = T)[2], '.rds', simplify = T)[1]
+        d <- readRDS(file.path(results_folder, f))
+        super_markers_edge[[gamma]] <- d
+    }
+    saveRDS(super_markers_edge, file.path(results_folder, "superMarkersEdge.rds"))
 }
 
 # ---------------------------------------------------------

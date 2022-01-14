@@ -32,8 +32,9 @@ default:
         computeSuper: F
         computeSingleManual: F
         computeSuperDes: F
+        computeSuperEdge: T
         computePseudo: F
         computePseudoManual: F
         computeBulk: F
         computeBulkManual: F
-        computeMeta: T
+        computeMeta: F

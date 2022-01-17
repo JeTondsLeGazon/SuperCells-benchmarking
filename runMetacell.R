@@ -1,12 +1,28 @@
 # 11 January 2022
 
-# Script for the differential expression computation of metacells, as the memory
-# required is high
+# Script for the computation of metacells, as the memory requirement is high
+# Can only be run on linux and macOS
+
+# ---------------------------------------------------------
+#  Header
+# ---------------------------------------------------------
+if(.Platform$OS.type == 'windows'){
+    stop('Cannot run this script on Windows... Try on Linux or Mac!')
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+
+if (length(args) == 0){
+    stop('You must provide a configuration file', call. = FALSE)
+}
+
+# SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
+.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+
 
 # ---------------------------------------------------------
 # Libraries and dependencies
 # ---------------------------------------------------------
-
 library(Seurat)
 library(ggplot2)
 library(data.table)
@@ -30,6 +46,7 @@ library(DropletUtils)
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
+
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -61,6 +78,8 @@ for(sample in samples){
 # Metacells creation
 # ---------------------------------------------------------
 samples_mc <- list()
+# Metacells created per sample to be consistant with supercells annotation
+# Pipeline available on Metacell vignettes
 for(sample in samples){
   path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
   scdb_init(path_per_sample, force_reinit=T)
@@ -69,7 +88,7 @@ for(sample in samples){
   mcell_add_gene_stat(gstat_id="meta_gs", mat_id="meta", force=T)
   mcell_gset_filter_cov(gset_id = "meta_feats", gstat_id="meta_gs", T_tot=100, T_top3=10)
   
-  sizes <- c(1, 2, 5, 10, 50, 100)
+  sizes <- c(1, 10, 20, 30, 50)
   sample_mc <- list()
   for(size in sizes){
     
@@ -91,6 +110,7 @@ for(sample in samples){
       K=30, min_mc_size=size, alpha=2)
     
     mat <- scdb_mc("meta_mc")
+    # Save metacell composition (cell clustering)
     sample_mc[[size]] <- mat@mc
     print(length(mat@mc))
   }

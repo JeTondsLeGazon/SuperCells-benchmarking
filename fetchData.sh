@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo "Dowloading data"
+mkdir data/
 
 curl -s https://zenodo.org/record/5048449/files/bulk_rnaseq.tar.gz?download=1 --output data/bulk_rnaseq.tar.gz
 curl -s https://zenodo.org/record/5048449/files/sc_rnaseq.tar.gz?download=1 --output data/sc_rnaseq.tar.gz

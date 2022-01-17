@@ -1,14 +1,36 @@
+# 5 January 2022
+
+# Config file for the dataset hagai 2018, mouse lps
+# Values were chosen after quality control and visualization
+
+# available data
+    # Hagai2018_mouse-lps
+    # Hagai2018_mouse-pic
+    # Hagai2018_pig-lps
+    # Hagai2018_rabbit-lps
+    # Hagai2018_rat-lps
+    # Hagai2018_rat-pic
+    # Angelidis2019_pneumo
+    # Angelidis2019_alvmac
+    # CanoGamez2020_naive-iTreg
+    # CanoGamez2020_memory-Th17
+
 default:
+    
     filename: 'Hagai2018_mouse-lps.rds'
+    
+    # Folders for intermediary data and results
     intermediaryDataFile: 'hagai_mouse_lps_data'
     resultsFile: 'hagai_mouse_lps_results'
     
     ctrl_vs_treat:
       ctrl: 'unst'
       treat: 'lps4'
-      
+    
+    # statistical test to use among 't' and 'wilcox'
     statTest: 't'
     
+    # all filtering parameters found after QC:
     filteringParam:
         doubletMaxPercentile: 0.95
         minGenePerCell: 300
@@ -18,12 +40,15 @@ default:
         maxMitoPercent: 20
         maxHbPercent: 5
     
+    # Normalization method for single-cell matrix
     normMethod: 'seurat'
     
+    # If computeCluster is set to TRUE, performs k-means clustering with these 
+    # centers
     centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
-    
     computeCluster: FALSE
     
+    # graining levels of the supercells
     gammas: !expr c(1, 2, 5, 10, 50, 100, 500, 2000, 10000, 20000)
     
     # Which DEs should be (re)computed

@@ -27,9 +27,9 @@ library(zoo)
 library(metacell)
 library(DropletUtils)
 
-source('utility.R')
-source('supercells.R')
-source('analysis.R')
+source('src/utility.R')
+source('src/supercells.R')
+source('src/analysis.R')
 
 # ---------------------------------------------------------
 # Meta parameters

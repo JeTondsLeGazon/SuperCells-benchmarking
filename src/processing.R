@@ -1,5 +1,7 @@
 # 11th November 2021
-# Contains all the functions necessary for the processing pipeline
+
+# Contains all necessary functions for the quality control (QC) and filtering of
+# single-cell and bulk data
 
 library(scDblFinder)
 
@@ -23,7 +25,7 @@ scaling_factor <- function(seuratdata, method = 'manual'){
 
 
 # Quality control for the single-cell data prior to filtering and downstream
-# analysis
+# analysis, no modification of the data
 singleCell_qc <- function(sc_data){
     
     # Outliers check
@@ -43,7 +45,7 @@ singleCell_qc <- function(sc_data){
     # Check quality with hemoglobin (blood contamination)
     sc_data <- PercentageFeatureSet(sc_data, "^HB[^(P)]", col.name = "percent_hb")
     
-    # Counts per cell, should be > 500 to be usable
+    # Counts per cell
     p <- tidyseurat::ggplot(data = sc_data, aes(x = nCount_RNA, color = label, fill = label)) +
         geom_density(alpha = 0.2) +
         scale_x_log10() +
@@ -104,7 +106,7 @@ singleCell_qc <- function(sc_data){
 }
 
 
-# Filtering of single cells according to parameter found in singleCell_qc
+# Filtering of single cells according to parameter found via singleCell_qc
 singleCell_filtering <- function(sc_data, 
                                  params){
     
@@ -125,8 +127,8 @@ singleCell_filtering <- function(sc_data,
 }
 
 
-# Normalization for single cell data based on either seurat normalization or manual
-# log-norm from DESeq2
+# Normalization for single cell or bulk/pseudobulk data based on either 
+# seurat normalization or manual log-norm from DESeq2
 NormalizeObject <- function(data, method = 'DESeq2', scaling.method = 'manual'){
     normalized_data <- data
     if (method == 'DESeq2'){

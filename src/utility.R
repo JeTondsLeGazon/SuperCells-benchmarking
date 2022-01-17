@@ -83,6 +83,7 @@ tpr <- function(gt, other){
     
 }
 
+
 plot_score_results <- function(scores){
    df <- data.frame(scores)
    labels <- sapply(unique(df$L1), function(x) paste0('Top n = ', x))

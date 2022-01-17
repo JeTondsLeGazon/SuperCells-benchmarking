@@ -36,9 +36,9 @@ library(ggExtra)
 library(weights)
 library(zoo)
 
-source('utility.R')
-source('supercells.R')
-source('analysis.R')
+source('src/utility.R')
+source('scr/supercells.R')
+source('src/analysis.R')
 
 
 # ---------------------------------------------------------

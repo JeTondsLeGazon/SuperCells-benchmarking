@@ -12,7 +12,7 @@ if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
 
-# SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
+# SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES IF NEEDED
 .libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
@@ -30,8 +30,8 @@ library(tidyr)
 library(stringr)
 library(config)
 
-source('utility.R')
-source('processing.R')
+source('src/utility.R')
+source('src/processing.R')
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -61,20 +61,8 @@ compute_cluter <- config$computeCluster
 # ---------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------
-#available: 
-    # Hagai2018_mouse-lps
-    # Hagai2018_mouse-pic
-    # Hagai2018_pig-lps
-    # Hagai2018_rabbit-lps
-    # Hagai2018_rat-lps
-    # Hagai2018_rat-pic
-    # Angelidis2019_pneumo
-    # Angelidis2019_alvmac
-    # CanoGamez2020_naive-iTreg
-    # CanoGamez2020_memory-Th17
-
-scpath <- '../sc_rnaseq/rds'
-bulkpath <- '../bulk_rnaseq/rds'
+scpath <- 'data/sc_rnaseq/rds'
+bulkpath <- 'data/bulk_rnaseq/rds'
 
 sc_data <- readRDS(file.path(scpath, filename))
 bulk_raw <- readRDS(file.path(bulkpath, filename))
@@ -88,7 +76,6 @@ sc_data$label <- factor(sc_data$label,
 rownames(bulk_raw$meta) <- bulk_raw$meta$sample
 bulk_data <- CreateSeuratObject(bulk_raw$assay, meta.data = bulk_raw$meta)
 
-# if CanoGamez, troubles in the meta ...
 bulk_data$label <- factor(tolower(bulk_raw$meta$label), 
                           labels = names(ctrl_vs_treat), 
                           levels = ctrl_vs_treat)
@@ -104,8 +91,6 @@ set.seed(0)
 # ---------------------------------------------------------
 # QC and filtering
 # ---------------------------------------------------------
-# Effects of normalization:
-# https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1
 sc_data <- singleCell_qc(sc_data)
 sc_filtered_data <- singleCell_filtering(sc_data, filtering_param)
 bulk_filtered_data <- bulk_qc_and_filtering(bulk_data)
@@ -141,15 +126,10 @@ pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = normMethod)
 # Subgroups may appear in the single cell data, which should be clustered to
 # compare these groups between each other
 sc_clustered_data <- sub_cluster(sc_normalized_data)
-# ------------------------------------------------------------------------------
-# CanoGamez2020_memory-Th17: matrix(c(-10, 10, -2, 2), ncol = 2)
-# mouse-lps : matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
-# pig-lps: matrix(c(-5, 5, 0, 0), ncol = 2)
-# rat-lps: matrix(c(-5, -5, 7, 7,   -5, 5, 5, -5), ncol = 2)
-# rabbit-lps: matrix(c(7, -5, 7, -5, -5, -5, 7, 7), ncol = 2)
 if(compute_cluter){
     sc_clustered_data <- reIdent(sc_clustered_data, centers)
 }else{
+    # group according to samples and conditions
     Idents(sc_clustered_data) <- 'sample'
 }
 

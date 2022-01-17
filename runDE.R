@@ -259,18 +259,17 @@ if(computeSuperEdge){
     super_markers_edge <- list()
     for(f in files){
         gamma <- str_split(str_split(f, 'Edge', simplify = T)[2], '.rds', simplify = T)[1]
-        d <- readRDS(file.path(results_folder, f))
-        super_markers_edge[[gamma]] <- d
+        if(gamma %in% gammas){
+            d <- readRDS(file.path(results_folder, f))
+            super_markers_edge[[gamma]] <- d
+        }
     }
-    saveRDS(super_markers_edge, file.path(results_folder, "superMarkersEdge.rds"))
+    # reordering
+    idx <- sort(as.numeric(names(super_markers_edge)), index.return = T)$ix
+    saveRDS(super_markers_edge[idx], file.path(results_folder, "superMarkersEdge.rds"))
 }
 
-y <- DGEList(counts = counts, group = condition)
-y <- calcNormFactors(y)
-y$samples
-design <- model.matrix(~ 0 + condition, data = y$samples)
-y <- estimateDisp(y, design, robust=TRUE) 
-fit <- glmFit(y,design)
+
 # ---------------------------------------------------------
 # DE single cells
 # ---------------------------------------------------------

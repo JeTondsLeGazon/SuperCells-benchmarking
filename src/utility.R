@@ -333,11 +333,82 @@ compare_statistics <- function(super_markers){
     ggarrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
 }
 
+
 fractionGenes <- function(DEs){
     lapply(DEs, function(DE) sapply(DE$gene, function(x) fractionGene(x, DEs)))
 }
 
+
 fractionGene <- function(gene, DEs){
     res <- sapply(DEs, function(x) gene %in% x$gene)
     paste(sort(names(DEs)[res]), collapse = '-')
+}
+
+
+# Create Gene Expression matrix (GE) of metacells from saved files mcGExxx.rds
+createMCGE <- function(sc_data, results_folder){
+    if(!any(grepl('mcGE*', list.files(results_folder)))){
+        stop("Cannot find metacells gene expression matrices ('mcGExxx.rds')")
+    }
+    
+    mcGEs <- list()
+    samples <- unique(sc_data$sample)
+    for(sample in samples){
+        mcGEs[[sample]] <- readRDS(file.path(results_folder, sprintf("mcGE%s.rds", sample)))
+    }
+    mcGEs <- lapply(mcGEs, function(x) x[!unlist(lapply(x, is.null))])
+    mcGEs <- lapply(seq_along(mcGEs[[1]]), function(i) lapply(mcGEs, function(x) x[[i]]))
+    names(mcGEs) <- as.character(c(1, 10, 20, 30, 50))  # TODO: add to configs
+    finalGEs <- list()
+    for(GE in mcGEs){
+        genesToKeep <- Reduce(intersect, sapply(GE, rownames))
+        tmp <- lapply(GE, function(x) x[genesToKeep, ])
+        resultGE <- data.frame(tmp[[1]], row.names = genesToKeep)
+        coln <- sprintf(paste0(substr(samples[1], 1, nchar(samples[1])),'_%s'), seq_len(ncol(tmp[[1]])))
+        for(i in 2:length(tmp)){
+            resultGE <- cbind(resultGE, tmp[[i]])
+            coln <- c(coln, 
+                      sprintf(paste0(substr(samples[i], 1, nchar(samples[i])),'_%s'), seq_len(ncol(tmp[[i]]))))
+        }
+        colnames(resultGE) <- coln
+        gamma <- floor(ncol(sc_data) / ncol(resultGE))
+        finalGEs[[as.character(gamma)]] <- resultGE
+    }
+    return(finalGEs)
+}
+
+
+# Create membership of metacells to be fed into supercells from saved files 
+# mcCompositionxxx.rds
+createMCMembership <- function(sc_data, results_folder){
+    if(!any(grepl('mcComposition*', list.files(results_folder)))){
+        stop("Cannot find metacells memberships files ('mcCompositionxxx.rds')")
+    }
+    
+    samples <- unique(sc_data$sample)
+    mcCompositions <- list()
+    for(sample in samples){
+        mcCompositions[[sample]] <- readRDS(file.path(results_folder, sprintf("mcComposition%s.rds", sample)))
+    }
+    mcCompositions <- lapply(mcCompositions, function(x) x[!unlist(lapply(x, is.null))])
+    mcCompositions <- lapply(seq_along(mcCompositions[[1]]), function(i) lapply(mcCompositions, function(x) x[[i]]))
+    names(mcCompositions) <- as.character(c(1, 10, 20, 30, 50))  # TODO: add to configs
+    
+    memberships <- list()
+    annotations <- list()
+    for(mc in mcCompositions){
+        curMax <- 0
+        membership <- c()
+        annotation <- c()
+        for(sample in names(mc)){
+            membership <- c(membership, mc[[sample]] + curMax)
+            annotation <- c(annotation, rep(sample, length(mc$sample)))
+            curMax <- curMax + max(mc[[sample]])
+        }
+        gamma <- floor(ncol(sc_data) / length(unique(membership)))
+        memberships[[as.character(gamma)]] <- membership
+        annotations[[as.character(gamma)]] <- annotation
+    }
+    return(list(membership = memberships,
+                annotation = annotation))
 }

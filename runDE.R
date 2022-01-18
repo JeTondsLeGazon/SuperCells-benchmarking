@@ -37,7 +37,7 @@ library(weights)
 library(zoo)
 
 source('src/utility.R')
-source('scr/supercells.R')
+source('src/supercells.R')
 source('src/analysis.R')
 
 

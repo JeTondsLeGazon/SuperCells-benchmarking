@@ -11,13 +11,13 @@ if(.Platform$OS.type == 'windows'){
 }
 
 args <- commandArgs(trailingOnly = TRUE)
-args <- 'configs/hagai_mouse_lps_config.yml'
+
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
 
 # SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
-#.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
 # ---------------------------------------------------------
@@ -79,7 +79,7 @@ rm('sc_filtered_data')
 # ---------------------------------------------------------
 # Metacells created per sample to be consistant with supercells annotation
 # Pipeline available on Metacell vignettes
-for(sample in samples[c(-1, -2)]){
+for(sample in samples){
   path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
   scdb_init(path_per_sample, force_reinit=T)
   mcell_import_scmat_10x("meta", base_dir = path_per_sample)
@@ -117,6 +117,7 @@ for(sample in samples[c(-1, -2)]){
     print(length(mat@mc))
     rm('mat')
   }
+  # Save at each sample as process is long and makes Rstudio crash often
   saveRDS(sample_mc, file.path(results_folder, sprintf("mcComposition%s.rds", sample)))
   saveRDS(mc_ge, file.path(results_folder, sprintf("mcGE%s.rds", sample)))
 }

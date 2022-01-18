@@ -11,13 +11,13 @@ if(.Platform$OS.type == 'windows'){
 }
 
 args <- commandArgs(trailingOnly = TRUE)
-
+args <- 'configs/hagai_mouse_lps_config.yml'
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
 
 # SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
-.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+#.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
 # ---------------------------------------------------------
@@ -51,7 +51,7 @@ source('src/analysis.R')
 # ---------------------------------------------------------
 # Meta parameters
 # ---------------------------------------------------------
-config <- config::get(file = 'configs/hagai_mouse_lps_config.yml')
+config <- config::get(file = args[1])
 
 filename <- config$filename
 data_folder <- file.path("data", config$intermediaryDataFile)
@@ -73,14 +73,13 @@ for(sample in samples){
                  overwrite = T)
 }
 
-
+rm('sc_filtered_data')
 # ---------------------------------------------------------
 # Metacells creation
 # ---------------------------------------------------------
-samples_mc <- list()
 # Metacells created per sample to be consistant with supercells annotation
 # Pipeline available on Metacell vignettes
-for(sample in samples){
+for(sample in samples[c(-1, -2)]){
   path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
   scdb_init(path_per_sample, force_reinit=T)
   mcell_import_scmat_10x("meta", base_dir = path_per_sample)
@@ -90,6 +89,7 @@ for(sample in samples){
   
   sizes <- c(1, 10, 20, 30, 50)
   sample_mc <- list()
+  mc_ge <- list()
   for(size in sizes){
     
     mcell_add_cgraph_from_mat_bknn(mat_id="meta", 
@@ -112,8 +112,11 @@ for(sample in samples){
     mat <- scdb_mc("meta_mc")
     # Save metacell composition (cell clustering)
     sample_mc[[size]] <- mat@mc
+    # save metacell gene expression matrix
+    mc_ge[[size]] <- mat@mc_fp
     print(length(mat@mc))
+    rm('mat')
   }
-  samples_mc[[sample]] <- sample_mc
+  saveRDS(sample_mc, file.path(results_folder, sprintf("mcComposition%s.rds", sample)))
+  saveRDS(mc_ge, file.path(results_folder, sprintf("mcGE%s.rds", sample)))
 }
-saveRDS(samples_mc, file.path(results_folder, "mcComposition.rds"))

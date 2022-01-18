@@ -3,3 +3,4 @@
 .R*
 data/
 *.html
+.Rproj.user

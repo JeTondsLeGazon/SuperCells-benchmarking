@@ -287,6 +287,64 @@ if(computeSingleManual){
 # Metacell
 # ---------------------------------------------------------
 # should run runMeta.R first
+if(computeMeta){
+    # Metacell own GE matrix from pipeline, manual t-test
+    message('Computing MetaCells DE genes with t-test')
+    GEs <- createMCGE(sc_filtered_data, results_folder)
+    mc_gammas <- names(GEs)
+    DEs <- list()
+    for(mc_gamma in mc_gammas){
+        # create seurat object
+        ge <- GEs[[mc_gamma]]
+        labels <- rep('ctrl', ncol(ge))
+        labels[grep('treat', colnames(ge))] <- 'treat'
+        meta <- data.frame(label = labels, row.names = colnames(ge))
+        mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
+        Idents(mc_data) <- 'label'
+        
+        # Run DE
+        metacell_markers_manual <- find_markers_bulk(mc_data, stat.test)
+        metacell_markers_manual <- arrangeDE(metacell_markers_manual)
+        DEs[[gamma]] <- metacell_markers_manual
+    }
+    saveRDS(DEs, file.path(results_folder, "metaGEMarkersManual.rds"))
+    message('Done computing MetaCells DE genes with t-test')
+    
+}
+
+if(computeMeta){
+    # Metacell own GE matrix from pipeline, DESeq2
+    message('Computing MetaCells DE genes with DESeq2')
+    GEs <- createMCGE(sc_filtered_data, results_folder)
+    mc_gammas <- names(GEs)
+    DEs <- list()
+    for(mc_gamma in mc_gammas){
+        # create seurat object
+        ge <- GEs[[mc_gamma]]
+        labels <- rep('ctrl', ncol(ge))
+        labels[grep('treat', colnames(ge))] <- 'treat'
+        meta <- data.frame(label = labels, row.names = colnames(ge))
+        mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
+        Idents(mc_data) <- 'label'
+        
+        # Run DE
+        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+        dds <- DESeqDataSetFromMatrix(ge,
+                                      colData = super$sc.cell.annotation., 
+                                      design = ~ sc.cell.annotation.)
+        
+        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
+        results_wald <- results(dds_wald)
+        
+        super_markers_des[[as.character(gamma)]] <- arrangeDE(results_wald, 
+                                                              oldNameLog = 'log2FoldChange',
+                                                              oldNameP = 'padj')
+    }
+    saveRDS(DEs, file.path(results_folder, "metaGEMarkersDes.rds"))
+    message('Done computing MetaCells DE genes with DESeq2')
+}
+
+
 if(F){
     stop <- F
     myMcFile <- file.path(results_folder, 'mcComposition.rds')

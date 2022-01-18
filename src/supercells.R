@@ -82,9 +82,9 @@ superCells_DEs <- function(data,  # normalized logcounts seurat object
 }
 
 
-# Computes the gene expression (arithmetic average) matrix for superCell at a 
-# specific gamma
-superCells_GE <- function(data, gamma){
+# Create super cells using arithmetic or geometric average for
+# the gene expression matrix
+createSuperCells <- function(data, gamma, arithmetic = TRUE){
     super <-  SCimplify(GetAssayData(data),
                         cell.annotation = Idents(data),
                         k.knn = 5,
@@ -97,6 +97,11 @@ superCells_GE <- function(data, gamma){
                                         supercell_membership = super$membership,
                                         method = "jaccard")
     
-    super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
+    # arithmetic average
+    if(arithmetic){
+        super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
+    }else{  # geometric average
+        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+    }
     return(super)
 }

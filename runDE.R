@@ -19,27 +19,27 @@ if (length(args) == 0){
 # ---------------------------------------------------------
 # Libraries and dependencies
 # ---------------------------------------------------------
-library(Seurat)
-library(dplyr)
-library(Matrix)
-library(ggplot2)
-library(data.table)
-library(DESeq2)
-library(edgeR)
-library(tidyr)
-library(limma)
-library(ggpubr)
-library(ggrepel)
-library(stringr)
-library(tidyseurat)
-library(ggExtra)
-library(weights)
-library(zoo)
-
-source('src/utility.R')
-source('src/supercells.R')
-source('src/analysis.R')
-
+    library(Seurat)
+    library(dplyr)
+    library(Matrix)
+    library(ggplot2)
+    library(data.table)
+    library(DESeq2)
+    library(edgeR)
+    library(tidyr)
+    library(limma)
+    library(ggpubr)
+    library(ggrepel)
+    library(stringr)
+    library(tidyseurat)
+    library(ggExtra)
+    library(weights)
+    library(zoo)
+    
+    source('src/utility.R')
+    source('src/supercells.R')
+    source('src/analysis.R')
+    
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -89,6 +89,7 @@ bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 # DE bulk
 # ---------------------------------------------------------
 if(computeBulk){
+    message('Computing Bulk DE genes')
     bulk_markers <- compute_DE_bulk(bulk_filtered_data)
     volcano_plot(bulk_markers$`edgeR-QLF`) +
         ggtitle('Volcano plot of bulk data from DESeq2 (wald)') +
@@ -98,6 +99,7 @@ if(computeBulk){
     bulk_markers <- lapply(bulk_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
     bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
     saveRDS(bulk_markers, file.path(results_folder, "bulkMarkers.rds"))
+    message('Done computing Bulk DE genes')
 }
 
 
@@ -106,11 +108,11 @@ if(computeBulk){
 # DE bulk manual
 # ---------------------------------------------------------
 if(computeBulkManual){
-    manual_bulk_markers <- find_markers_bulk(bulk_filtered_data, stat.test) %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
-        mutate(gene = row.names(.)) %>%
-        subset(logFC > 0)
+    message('Computing Bulk DE genes manually')
+    manual_bulk_markers <- arrangeDE(find_markers_bulk(bulk_filtered_data, stat.test))
     saveRDS(manual_bulk_markers, file.path(results_folder, "bulkMarkersManual.rds"))
+    message('Done computing Bulk DE genes manually')
+    
 }
 
 
@@ -118,6 +120,7 @@ if(computeBulkManual){
 # DE pseudobulk DESeq2
 # ---------------------------------------------------------
 if(computePseudo){
+    message('Computing Pseudo-bulk DE genes')
     pseudo_markers <- compute_DE_bulk(pseudobulk_data)
     volcano_plot(pseudo_markers$`edgeR-QLF`) +
         ggtitle('Volcano plot of pseudo bulk data from DESeq2 (wald)') +
@@ -127,23 +130,29 @@ if(computePseudo){
     pseudo_markers <- lapply(pseudo_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
     pseudo_markers <- pseudo_markers[!unlist(lapply(pseudo_markers, is.null))]
     saveRDS(pseudo_markers, file.path(results_folder, "pseudoMarkers.rds"))
+    message('Done computing Pseudo-bulk DE genes')
 }
+
 
 # ---------------------------------------------------------
 # DE pseudobulk manual
 # ---------------------------------------------------------
 if(computePseudoManual){
+    message('Computing Pseudo-bulk DE genes manually')
     pseudo_markers_manual <- find_markers_bulk(pseudobulk_norm, stat.test) %>%
         arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
         mutate(gene = row.names(.)) %>%
         subset(logFC > 0)
     saveRDS(pseudo_markers_manual, file.path(results_folder, "pseudoMarkersManual.rds"))
+    message('Done computing Pseudo-bulk DE genes manually')
 }
 
+
 # ---------------------------------------------------------
-# DE supercells
+# DE supercells (weighted and unweighted)
 # ---------------------------------------------------------
 if(computeSuper){
+    message('Computing SuperCell DE genes')
     memory.limit(size=56000)
     super_markers <- superCells_DEs(sc_clustered_data, gammas, 5,
                                     weighted = F,
@@ -155,7 +164,9 @@ if(computeSuper){
     
     super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
     saveRDS(super_markers, file.path(results_folder, "superMarkers.rds"))
+    message('Done computing SuperCell DE genes')
     
+    message('Computing SuperCell DE genes with weighted t-test')
     super_markers_weighted <- superCells_DEs(sc_clustered_data, gammas, 5,
                                     weighted = T,
                                     test.use = stat.test)
@@ -163,6 +174,7 @@ if(computeSuper){
     super_markers_weighted <- lapply(super_markers_weighted, 
                                      function(x) subset(x, logFC > 0))
     saveRDS(super_markers_weighted, file.path(results_folder, "superMarkersWeighted.rds"))
+    message('Done computing SuperCell DE genes with weighted t-test')
 }
 
 
@@ -170,87 +182,54 @@ if(computeSuper){
 # DE supercells DESeq2
 # ---------------------------------------------------------
 if(computeSuperDes){
+    message('Computing SuperCell DE genes with DESeq2')
     super_markers_des <- list()
     
-    for(gamma in gammas[c(-1,-2)]){
-        super <-  SCimplify(GetAssayData(sc_filtered_data),
-                            cell.annotation = sc_filtered_data$sample,
-                            k.knn = 5,
-                            gamma = gamma,
-                            n.var.genes = 1000,
-                            directed = FALSE
-        )
-        
-        super$cell_line <- supercell_assign(clusters = sc_filtered_data$sample,
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        
-        super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
-        colData <- rep('ctrl', ncol(super$GE))
-        colData[grep('treat', super$cell_line)] <- 'treat'
-        super$design <- data.frame(colData)
-        colnames(super$design) <- 'design'
-        dds <- DESeqDataSetFromMatrix(floor(sweep(super$GE, 2, super$supercell_size, '*')),
-                                      colData = super$design, 
-                                      design = ~ design)
+    for(gamma in gammas){
+        message('\tGamma = ', gamma)
+        # supercells creation with geometric mean as using counts here
+        super <- createSuperCells(sc_filtered_data, gamma, arithmetic = FALSE)
+        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+        dds <- DESeqDataSetFromMatrix(ge,
+                                      colData = super$sc.cell.annotation., 
+                                      design = ~ sc.cell.annotation.)
         
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        
-        
-        
         results_wald <- results(dds_wald)
         
-        super_markers_des[[as.character(gamma)]] <- as.data.frame(results_wald) %>%
-            dplyr::rename(logFC = log2FoldChange, adj.p.value = padj) %>% 
-            mutate(gene = rownames(.))
+        super_markers_des[[as.character(gamma)]] <- arrangeDE(results_wald, 
+                                                              oldNameLog = 'log2FoldChange',
+                                                              oldNameP = 'padj')
     }
-    
-    
-    super_markers_des <- lapply(super_markers_des, function(x) x %>% 
-                                    arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%
-                                    subset(logFC > 0))
     saveRDS(super_markers_des, file.path(results_folder, "superMarkersDes.rds"))
+    message('Done computing SuperCell DE genes with DESeq2')
 }
 
 
 # ---------------------------------------------------------
 # DE supercells EdgeR
 # ---------------------------------------------------------
+# Saves at each gamma to avoid loss of information in case of crash
 if(computeSuperEdge){
-    for(gamma in gammas[c(-1,-2)]){
-        message(sprintf('Running for gamma = %s', gamma))
-        super <-  SCimplify(GetAssayData(sc_filtered_data),
-                            cell.annotation = sc_filtered_data$sample,
-                            k.knn = 5,
-                            gamma = gamma,
-                            n.var.genes = 1000,
-                            directed = FALSE
-        )
+    message('Computing SuperCell DE genes with EdgeR')
+    for(gamma in gammas){
+        message('\tGamma = ', gamma)
+        # supercells creation with geometric mean as using counts here
+        super <- createSuperCells(sc_filtered_data, gamma, arithmetic = FALSE)
         
-        super$cell_line <- supercell_assign(clusters = sc_filtered_data$sample,
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        
-        super$GE <- supercell_GE(GetAssayData(sc_filtered_data), super$membership)
-        
-        # remove last char from sample to have conditions
-        design <- sapply(super$cell_line, function(x) substr(x, 1, nchar(x) - 1))
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-        edge <- DGEList(counts = ge, group = design)
+        edge <- DGEList(counts = ge, group = super$sc.cell.annotation.)
         edge <- calcNormFactors(edge)
         model <- model.matrix(~design)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test
         fit <- glmQLFit(edge, model)
-        qlf <- glmQLFTest(fit, coef= 2)$table %>%
-            data.frame() %>%
-            dplyr::rename(adj.p.value = PValue) %>% 
-            mutate(gene = rownames(.))  %>%
-            arrange(adj.p.value, 1/(abs(logFC) + 1)) %>%
-            subset(logFC > 0)
-        message(sprintf('Done for gamma = %s', gamma))
+        qlf <- arrangeDE(glmQLFTest(fit, coef= 2)$table, oldNameP = 'PValue')
+        
         saveRDS(qlf, file.path(results_folder, sprintf("superMarkersEdge%s.rds", gamma)))
+        
+        # Memory space savings to avoid crash ...
         rm('super')
         rm('qlf')
     }
@@ -267,13 +246,15 @@ if(computeSuperEdge){
     # reordering
     idx <- sort(as.numeric(names(super_markers_edge)), index.return = T)$ix
     saveRDS(super_markers_edge[idx], file.path(results_folder, "superMarkersEdge.rds"))
+    message('Done computing SuperCell DE genes with EdgeR')
 }
 
 
 # ---------------------------------------------------------
-# DE single cells
+# DE single cells (seurat)
 # ---------------------------------------------------------
 if(computeSingle){
+    message('Computing Single cells DE genes with Seurat')
     single_markers <- singleCell_DE(sc_clustered_data, 
                                     var.features = 500,
                                     stat.test)
@@ -283,27 +264,29 @@ if(computeSingle){
     
     single_markers <- single_markers %>% subset(logFC > 0)
     saveRDS(single_markers, file.path(results_folder, "singleMarkers.rds"))
+    message('Done computing Single cells DE genes with Seurat')
 }
+
 
 # ---------------------------------------------------------
 # DE single cells (manual)
 # ---------------------------------------------------------
 if(computeSingleManual){
+    message('Computing Single cells DE genes manually')
     manual_single_markers <- find_markers_bulk(sc_clustered_data, stat.test)
     manual_single_markers <- manual_single_markers %>% 
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
         mutate(gene = rownames(.)) %>%
         subset(logFC > 0)
     saveRDS(manual_single_markers, file.path(results_folder, "singleMarkersManual.rds"))
-    
+    message('Done computing Single cells DE genes manually')
 }
 
 
 # ---------------------------------------------------------
-# Metacell (unix or mac systems only)
+# Metacell
 # ---------------------------------------------------------
-# should run metacells composition first
-
+# should run runMeta.R first
 if(F){
     stop <- F
     myMcFile <- file.path(results_folder, 'mcComposition.rds')

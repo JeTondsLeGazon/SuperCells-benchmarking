@@ -412,3 +412,19 @@ createMCMembership <- function(sc_data, results_folder){
     return(list(membership = memberships,
                 annotation = annotation))
 }
+
+
+# Arrange DE tables by creating a gene columns, arranging in decreasing order
+# according to p values and logFC, renaming columns and subseting
+arrangeDE <- function(DE, oldNameLog = NULL, oldNameP = NULL, subset_logFC = T){
+        DE <- DE %>%
+            data.frame() %>%
+            dplyr::rename(logFC = oldNameLog, adj.p.value = oldNameP) %>% 
+            mutate(gene = row.names(.)) %>%
+            arrange(adj.p.value, 1/(abs(logFC) + 1))
+    if(subset_logFC){
+        subset(DE, logFC > 0)
+    }else{
+        DE
+    }
+}

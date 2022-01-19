@@ -159,7 +159,7 @@ find_markers_bulk <- function(bulkData, stat.test){
     logFCs <- log1p(grp1) - log1p(grp2)  # must do like this otherwise may / 0
     
     # t-test
-    if(stat.test == 'wicox'){
+    if(stat.test == 'wilcox'){
         hyp.test <- wilcox.test
     }else{
         hyp.test <- t.test

@@ -428,3 +428,26 @@ arrangeDE <- function(DE, oldNameLog = NULL, oldNameP = NULL, subset_logFC = T){
         DE
     }
 }
+
+
+# Create random groups between cells and compute their mean or sum
+randomGrouping <- function(data, gamma, operation = 'mean'){
+    availableCols <- seq(1:ncol(data))
+    grps <- list()
+    grpNum <- 1
+    if(operation == 'mean'){
+        opFunc <- rowMeans
+    }else{
+        opFunc <- rowSums
+    }
+    while(length(availableCols) > gamma){
+        subSample <- sample(availableCols, gamma)
+        availableCols <- setdiff(availableCols, subSample)
+        grps[[grpNum]] <- opFunc(as.matrix(data[, subSample]))
+        grpNum <- grpNum + 1
+    }
+    grps[[grpNum]] <- opFunc(as.matrix(data[, availableCols]))
+    res <- data.frame(grps)
+    colnames(res) <- seq(1:grpNum)
+    return(res)
+}

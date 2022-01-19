@@ -53,13 +53,20 @@ default:
     
     # Which DEs should be (re)computed
     DE:
-        computeSingle: F
-        computeSuper: F
-        computeSingleManual: F
-        computeSuperDes: F
-        computeSuperEdge: F
-        computePseudo: F
-        computePseudoManual: F
-        computeBulk: F
-        computeBulkManual: F
+        computeSingle: T
+        computeSuper: T
+        computeSingleManual: T
+        computeSuperDes: T
+        computeSuperEdge: T
+        computePseudo: T
+        computePseudoManual: T
+        computeBulk: T
+        computeBulkManual: T
         computeMeta: T
+        computeMetaDes: T
+        computeMetaEdge: T
+        computeMetaSuper: T
+        computeMetaSuperDes: T
+        computeMetaSuperEdge: T
+        computeRandomGroup: T
+

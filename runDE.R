@@ -316,28 +316,28 @@ if(computeMeta){
     # Metacell own GE matrix from pipeline, DESeq2
     message('Computing MetaCells DE genes with DESeq2')
     GEs <- createMCGE(sc_filtered_data, results_folder)
+    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
     mc_gammas <- names(GEs)
     DEs <- list()
     for(mc_gamma in mc_gammas){
-        # create seurat object
         ge <- GEs[[mc_gamma]]
+        membership <- metaInfo$membership[[mc_gamma]]
+        sizes <- table(membership)
         labels <- rep('ctrl', ncol(ge))
         labels[grep('treat', colnames(ge))] <- 'treat'
-        meta <- data.frame(label = labels, row.names = colnames(ge))
-        mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
-        Idents(mc_data) <- 'label'
+        labels <- data.frame(label = labels, row.names = colnames(ge))
         
         # Run DE
-        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+        ge <- floor(sweep(ge, 2, sizes, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = super$sc.cell.annotation., 
-                                      design = ~ sc.cell.annotation.)
+                                      colData = labels, 
+                                      design = ~ label)
         
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
         results_wald <- results(dds_wald)
         
-        super_markers_des[[as.character(gamma)]] <- arrangeDE(results_wald, 
-                                                              oldNameLog = 'log2FoldChange',
+        DEs[[as.character(gamma)]] <- arrangeDE(results_wald, 
+                                                oldNameLog = 'log2FoldChange',
                                                               oldNameP = 'padj')
     }
     saveRDS(DEs, file.path(results_folder, "metaGEMarkersDes.rds"))

@@ -402,7 +402,7 @@ createMCMembership <- function(sc_data, results_folder){
         annotation <- c()
         for(sample in names(mc)){
             membership <- c(membership, mc[[sample]] + curMax)
-            annotation <- c(annotation, rep(sample, length(mc$sample)))
+            annotation <- c(annotation, rep(sample, length(mc[[sample]])))
             curMax <- curMax + max(mc[[sample]])
         }
         gamma <- floor(ncol(sc_data) / length(unique(membership)))
@@ -410,7 +410,7 @@ createMCMembership <- function(sc_data, results_folder){
         annotations[[as.character(gamma)]] <- annotation
     }
     return(list(membership = memberships,
-                annotation = annotation))
+                annotation = annotations))
 }
 
 

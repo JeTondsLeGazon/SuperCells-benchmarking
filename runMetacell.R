@@ -17,7 +17,7 @@ if (length(args) == 0){
 }
 
 # SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
-#.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
 # ---------------------------------------------------------
@@ -89,6 +89,7 @@ for(sample in samples){
   
   sizes <- c(1, 10, 20, 30, 50)
   sample_mc <- list()
+  mc_ge <- list()
   for(size in sizes){
     
     mcell_add_cgraph_from_mat_bknn(mat_id="meta", 
@@ -109,10 +110,14 @@ for(sample in samples){
       K=30, min_mc_size=size, alpha=2)
     
     mat <- scdb_mc("meta_mc")
-    # Save metacell
-    sample_mc[[size]] <- mat
+    # Save metacell composition (cell clustering)
+    sample_mc[[size]] <- mat@mc
+    # save metacell gene expression matrix
+    mc_ge[[size]] <- mat@mc_fp
+    print(length(mat@mc))
     rm('mat')
   }
   # Save at each sample as process is long and makes Rstudio crash often
-  saveRDS(sample_mc, file.path(results_folder, sprintf("metaCell%s.rds", sample)))
+  saveRDS(sample_mc, file.path(results_folder, sprintf("mcComposition%s.rds", sample)))
+  saveRDS(mc_ge, file.path(results_folder, sprintf("mcGE%s.rds", sample)))
 }

@@ -144,14 +144,25 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 }
 
 
-# Manual computation of logFC and t-test for passed data
-find_markers <- function(data, stat.test){
+# Computation of logFC and p-values for passed data with seurat or hyp test
+find_markers <- function(data, stat.test, seurat = T){
     
     data <- NormalizeData(data)
     
     treat_grp <- grep('treat|[Ll][Pp][Ss]', Idents(data))
     ctrl_grp <- grep('ctrl|[Uu][Nn][Ss][Tt]', Idents(data))
     
+    if(seurat){
+        DE <- FindMarkers(data,
+                    ident.1 = 'treat',
+                    ident.2 = 'ctrl',
+                    only.pos = F, 
+                    logfc.threshold = 0, 
+                    test.use = stat.test)
+        return(arrange(DE,
+                       oldNameLog = 'avg_log2FC',
+                       oldNameP = 'p_val_adj'))
+    }
     #Log FC computation
     tmp <- expm1(GetAssayData(data)) %>% data.frame()
     grp1 <- rowMeans(tmp[, treat_grp])
@@ -171,7 +182,7 @@ find_markers <- function(data, stat.test){
                     p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)
-    return(r)
+    return(arrageDE(r))
 }
 
 
@@ -184,4 +195,73 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
               add = 'reg.line', conf.int = T, cor.coef = T, cor.method = 'pearson',
               add.params = list(color = "blue", fill = "lightgray")) +
     geom_abline(color = 'red', size = 1)
+}
+
+
+# plots different super/meta cells vs others
+plot_results_flex <- function(super_mc, others, score.type = 'match'){
+    plot(NULL, 
+         ylim=c(0,1), 
+         xlim=c(1, 100), 
+         ylab="Scores", 
+         xlab="Gammas", 
+         log = 'x')
+    
+    # score to use
+    score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
+    if(score.type == 'match'){
+        super_mc <- lapply(super_mc, function(x) lapply(x, function(xx) xx[1:100, ]))
+        others <- lapply(others, function(x) x[1:100, ])
+    }
+    
+    # Case when we want to compare each element of super_mc to a single in others
+    if(length(others) == 1){
+        others <- rep(others, length(super_mc), simpifly = F)
+    }
+    
+    chr <- c(1, 4, 8, 2, 3, 4, 3)
+    colors <- c('brown2', 'darkgreen', 'gold', 'black', 'grey')
+    legends <- c()
+    for (i in seq_along(others)){
+        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(others[[i]], x)))
+        gammas <- as.numeric(names(super_mc[[i]]))
+        points(gammas, matching, col = colors[i], pch = chr[i], cex = 1.5)
+        lines(gammas, matching, col = colors[i] , lwd = 1.5)
+        if(grepl('mc_sc', names(super_mc)[i])){
+            tag <- 'MetaCells Super'
+        }else if(grepl('mc', names(super_mc)[i])){
+            tag <- 'MetaCells'
+        }else if(grepl('super', names(super_mc)[i])){
+            tag <- 'SuperCells'
+        }else if(grepl('sub', names(super_mc)[i])){
+            tag <- 'Subsampling'
+        }else{
+            tag <- 'Random grouping'
+        }
+        if(grepl('t$', names(super_mc[i]))){
+            testTag <- 't-test'
+        }else if(grepl('t', names(super_mc[i]))){
+            testTag <- 'weighted t-test'
+        }else if(grepl('[Dd][Ee][Ss]', names(super_mc[i]))){
+            testTag <- 'DESeq2'
+        }else{
+            testTag <- 'EdgeR'
+        }
+        super_mc_legend <- paste0(tag, ' (', testTag, ')')
+        legends <- c(legends, 
+                     paste(super_mc_legend, names(others)[i], sep = ' vs '))
+    }
+    if(score.type == 'match'){
+        title <- sprintf('True positive rate among the top 100 DE genes between %s and Ground truth', tag)
+    }else if (score.type == 'auc'){
+        title <- sprintf('AUROC of DE genes between %s and Ground truth', tag)
+    }else if(score.type == 'tpr'){
+        title <- sprintf('True positive rate of DE genes between %s and Ground truth', tag)
+    }
+    legend('topright', 
+           legend = legends, 
+           col = colors, 
+           pch = chr[seq_along(others)])
+    title(title)
+    grid()
 }

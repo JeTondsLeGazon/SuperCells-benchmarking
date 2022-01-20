@@ -55,23 +55,31 @@ stat.test <- config$statTest
 
 # Should we compute these DE ?
 computeSingle <- config$DE$computeSingle
-computeSuper <- config$DE$computeSuper
 computeSingleManual <- config$DE$computeSingleManual
-computeSuperDes <- config$DE$computeSuperDes
 computePseudo <- config$DE$computePseudo
 computePseudoManual <- config$DE$computePseudoManual
 computeBulk <- config$DE$computeBulk
 computeBulkManual <- config$DE$computeBulkManual
-computeMeta <- config$DE$computeMeta
+
+computeSuper <- config$DE$computeSuper
+computeSuperDes <- config$DE$computeSuperDes
 computeSuperEdge <- config$DE$computeSuperEdge
+
+computeMeta <- config$DE$computeMeta
 computeMetaDes <- config$DE$computeMetaDes
 computeMetaEdge <- config$DE$computeMetaEdge
+
 computeMetaSuper <- config$DE$computeMetaSuper
 computeMetaSuperDes <- config$DE$computeMetaSuperDes
 computeMetaSuperEdge <- config$DE$computeMetaSuperEdge
+
 computeRandomGroup <- config$DE$computeRandomGroup
 computeRandomGroupDes <- config$DE$computeRandomGroupDes
 computeRandomGroupEdge <- config$DE$computeRandomGroupEdge
+
+computeSubSampling <- config$DE$computeSubSampling
+computeSubSamplingDes <- config$DE$computeSubSamplingDes
+computeSubSamplingEdge <- config$DE$computeSubSamplingEdge
 
 gammas <- config$gammas
 
@@ -117,7 +125,7 @@ if(computeBulk){
 # ---------------------------------------------------------
 if(computeBulkManual){
     message('Computing Bulk DE genes manually')
-    manual_bulk_markers <- arrangeDE(find_markers(bulk_filtered_data, stat.test))
+    manual_bulk_markers <- find_markers(bulk_filtered_data, stat.test)
     saveRDS(manual_bulk_markers, file.path(results_folder, "bulkMarkersManual.rds"))
     message('Done computing Bulk DE genes manually')
     
@@ -312,7 +320,6 @@ if(computeMeta){
         
         # Run DE
         metacell_markers_manual <- find_markers(mc_data, stat.test)
-        metacell_markers_manual <- arrangeDE(metacell_markers_manual)
         DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
     saveRDS(DEs, file.path(results_folder, "metaGEMarkersManual.rds"))
@@ -533,8 +540,7 @@ if(computeRandomGroup){
         rdmData <- CreateSeuratObject(randomGrp, 
                                       meta.data = data.frame(label = labels, rownames = colnames(randomGrp)))
         Idents(rdmData) <- 'label'
-        DE <- find_markers(rdmData, stat.test)
-        DEs[[as.character(gamma)]] <- arrangeDE(DE)
+        DEs[[as.character(gamma)]] <- find_markers(rdmData, stat.test)
     }
     saveRDS(DEs, file.path(results_folder, 'randomGrouping.rds'))
     message('Done computing Random grouping t-test')
@@ -544,7 +550,7 @@ if(computeRandomGroup){
 # ---------------------------------------------------------
 # Random grouping DESeq2
 # ---------------------------------------------------------
-if(computeRandomGroup){
+if(computeRandomGroupDes){
     memory.limit(size=56000)
     message('Computing Random grouping DESeq2')
     ge <- GetAssayData(sc_filtered_data)
@@ -582,7 +588,7 @@ if(computeRandomGroup){
 # ---------------------------------------------------------
 # Random grouping EdgeR
 # ---------------------------------------------------------
-if(computeRandomGroup){
+if(computeRandomGroupEdge){
     message('Computing Random grouping EdgeR')
     memory.limit(size=56000)
     ge <- GetAssayData(sc_filtered_data)
@@ -627,8 +633,7 @@ if(computeSubSampling){
         sc_clustered_data$tmp <- F
         sc_clustered_data$tmp[useCols] <- T
         data <- subset(sc_clustered_data, subset = tmp == T)
-        DE <- find_markers(data, stat.test)
-        DEs[[as.character(gamma)]] <- arrangeDE(DE)
+        DEs[[as.character(gamma)]] <- find_markers(data, stat.test)
     }
     saveRDS(DEs, file.path(results_folder, 'subSampling.rds'))
     message('Done computing Subsampling t-test')
@@ -638,7 +643,7 @@ if(computeSubSampling){
 # ---------------------------------------------------------
 # Subsampling DESeq2
 # ---------------------------------------------------------
-if(computeSubSampling){
+if(computeSubSamplingDes){
     message('Computing Subsampling DESeq2')
     nCols <- ncol(sc_clustered_data)
     DEs <- list()
@@ -665,7 +670,7 @@ if(computeSubSampling){
 # ---------------------------------------------------------
 # Subsampling EdgeR
 # ---------------------------------------------------------
-if(computeSubSampling){
+if(computeSubSamplingEdge){
     message('Computing Subsampling EdgeR')
     nCols <- ncol(sc_clustered_data)
     DEs <- list()
@@ -686,6 +691,6 @@ if(computeSubSampling){
         DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                 oldNameP = 'PValue')
     }
-    saveRDS(DEs, file.path(results_folder, 'subSamplingDes.rds'))
+    saveRDS(DEs, file.path(results_folder, 'subSamplingEdge.rds'))
     message('Done computing Subsampling EdgeR')
 }

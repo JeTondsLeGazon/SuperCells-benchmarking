@@ -38,9 +38,7 @@ superCells_DE <- function(data,  # gene expression matrix counts
                             logfc.threshold = 0,
                             only.pos = F,
                             do.bootstrapping = F,
-                            test.use = test.use) %>%
-                    mutate(gene = rownames(.))
-            
+                            test.use = test.use)
             DEs <- rbind(DEs, DE)
         }
     }else{
@@ -52,14 +50,9 @@ superCells_DE <- function(data,  # gene expression matrix counts
                      logfc.threshold = 0,
                      only.pos = F,
                      do.bootstrapping = F,
-                     test.use = test.use) %>%
-            mutate(gene = rownames(.))
+                     test.use = test.use)
     }
-    DEs <- DEs %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-        subset(!duplicated(.))
-    rownames(DEs) <- DEs$gene
-    return(DEs)
+    return(arrangeDE(DEs))
 }
 
 

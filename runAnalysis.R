@@ -68,6 +68,7 @@ if(!dir.exists(results_folder)){
     stop(sprintf("Cannot load data from folder %s, does not exist", results_folder))
 }
 
+# Data
 sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
 sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
 pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulk.rds"))
@@ -75,103 +76,45 @@ pseudobulk_norm <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.r
 bulk_filtered_data <- readRDS(file = file.path(data_folder, "bulkFiltered.rds"))
 bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
+# DE markers
 bulk_markers <- readRDS(file.path(results_folder, "bulkMarkers.rds"))
 bulk_markers_manual <- readRDS(file.path(results_folder, "bulkMarkersManual.rds"))
-pseudo_markers <- readRDS(file.path(results_folder, "pseudoMarkers.rds"))
-pseudo_markers_manual <- readRDS(file.path(results_folder, "pseudoMarkersManual.rds"))
+
 super_markers <- readRDS(file.path(results_folder, "superMarkers.rds"))
-super_markers_weighted <- readRDS(file.path(results_folder, "superMarkersWeighted.rds"))
 super_markers_des <- readRDS(file.path(results_folder, "superMarkersDes.rds"))
 super_markers_edge <- readRDS(file.path(results_folder, "superMarkersEdge.rds"))
-single_markers <- readRDS(file.path(results_folder, "singleMarkers.rds"))
+
 mc_markers <- readRDS(file.path(results_folder, 'metaGEMarkersManual.rds'))
 mc_markers_edge <- readRDS(file.path(results_folder, 'metaGEMarkersEdge.rds'))
 mc_markers_des <- readRDS(file.path(results_folder, 'metaGEMarkersDes.rds'))
+
 mc_sc_markers <- readRDS(file.path(results_folder, 'metaSuperMarkers.rds'))
 mc_sc_markers_edge <- readRDS(file.path(results_folder, 'metaSuperMarkersEdge.rds'))
 mc_sc_markers_des <- readRDS(file.path(results_folder, 'metaSuperMarkersDes.rds'))
+
+random_markers <- readRDS(file.path(results_folder, 'metaSuperMarkers.rds'))
+random_markers_des <- readRDS(file.path(results_folder, 'metaSuperMarkersDes.rds'))
+random_markers_edge <- readRDS(file.path(results_folder, 'metaSuperMarkersEdge.rds'))
+
+sub_sampling <- readRDS(file.path(results_folder, 'subSampling.rds'))
+sub_sampling_des <- readRDS(file.path(results_folder, 'subSamplingDes.rds'))
+sub_sampling_edge <- readRDS(file.path(results_folder, 'subSamplingEdge.rds'))
 
 
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
-for(score.type in c('auc', 'tpr', 'match')){
-    plot_results(mc_markers, 
-                 list('single cells (t-test)' = single_markers, 
-                      'bulk (t-test)' = bulk_markers_manual, 
-                      'bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
-                      'pseudobulk (DESeq2)' = pseudo_markers$`DESeq2-Wald`,
-                      'pseudobulk (t-test)' = pseudo_markers_manual),
-                 super.type = 'DESeq2',
-                 score.type = score.type)
-}
-
 su_mc <- list('super_t' = super_markers,
-              'super_t_weighted' = super_markers_weighted,
-              'super_des' = super_markers_des,
-              'super_edge' = super_markers_edge)
-mc_su <- list('mc_t' = mc_markers,
-              'mc_des' = mc_markers_des,
-              'mc_edge' = mc_markers_edge)
-comp <- list('Bulk (t-test)' = bulk_markers_manual,
-             'Bulk (DESeq2)' = bulk_markers$`DESeq2-Wald`,
-             'Bulk (EdgeR)' = bulk_markers$`edgeR-QLF`)
+              'mc_t' = mc_markers,
+              'mc_sc_t' = mc_sc_markers, 
+              'random_t' = random_markers,
+              'sub_t' = sub_sampling)
 
-# plots different super/meta cells vs others
-plot_results_flex <- function(super_mc, others, score.type = 'match'){
-    plot(NULL, 
-         ylim=c(0,1), 
-         xlim=c(1, 20000), 
-         ylab="Scores", 
-         xlab="Gammas", 
-         log = 'x')
-    
-    # score to use
-    score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
-    if(score.type == 'match'){
-        super_mc <- lapply(super_mc, function(x) lapply(x, function(xx) xx[1:100, ]))
-        others <- lapply(others, function(x) x[1:100, ])
-    }
-    
-    
-    chr <- c(8, 15, 16, 17, 18, 4, 3)
-    legends <- c()
-    for (i in seq_along(others)){
-        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(others[[i]], x)))
-        gammas <- as.numeric(names(super_mc[[i]]))
-        points(gammas, matching, col = i, pch = chr[i], cex = 1.5)
-        lines(gammas, matching, col = i, lwd = 1.5)
-        if(grepl('mc', names(super_mc)[i])){
-            tag <- 'MetaCells'
-        }else{
-            tag <- 'SuperCells'
-        }
-        if(grepl('t$', names(super_mc[i]))){
-            testTag <- 't-test'
-        }else if(grepl('t', names(super_mc[i]))){
-            testTag <- 'weighted t-test'
-        }else if(grepl('[Dd][Ee][Ss]', names(super_mc[i]))){
-            testTag <- 'DESeq2'
-        }else{
-            testTag <- 'EdgeR'
-        }
-        super_mc_legend <- paste0(tag, ' (', testTag, ')')
-        legends <- c(legends, paste(super_mc_legend, names(others)[i], sep = ' vs '))
-    }
-    if(score.type == 'match'){
-        title <- sprintf('True positive rate among the top 100 DE genes between %s and Ground truth', tag)
-    }else if (score.type == 'auc'){
-        title <- sprintf('AUROC of DE genes between %s and Ground truth', tag)
-    }else if(score.type == 'tpr'){
-        title <- sprintf('True positive rate of DE genes between %s and Ground truth', tag)
-    }
-    legend('topright', 
-           legend = legends, 
-           col = seq_along(others), 
-           pch = chr[seq_along(others)])
-    title(title)
-    grid()
+comp <- list('Bulk (t-test)' = bulk_markers_manual)
+for(score.type in c('auc', 'tpr', 'match')){
+    plot_results_flex(su_mc, comp, score.type = score.type)
 }
+
 
 # ---------------------------------------------------------
 # LogFC - LogFC graphs

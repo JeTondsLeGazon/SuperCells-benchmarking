@@ -94,6 +94,7 @@ if(!dir.exists(data_folder)){
 }
 
 sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
+Idents(sc_clustered_data) <- 'label'
 sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
 pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulk.rds"))
 pseudobulk_norm <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
@@ -633,6 +634,7 @@ if(computeSubSampling){
         sc_clustered_data$tmp <- F
         sc_clustered_data$tmp[useCols] <- T
         data <- subset(sc_clustered_data, subset = tmp == T)
+        Idents(data) <- 'label'
         DEs[[as.character(gamma)]] <- find_markers(data, stat.test)
     }
     saveRDS(DEs, file.path(results_folder, 'subSampling.rds'))

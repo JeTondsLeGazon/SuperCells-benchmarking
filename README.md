@@ -16,6 +16,7 @@ The datasets used were found in a [paper](https://www.nature.com/articles/s41467
 |----- src  
 
 ## Dependencies
+!! install new version of [SuperCells](https://github.com/michelhugo/SuperCell) available here !!
 
 ... in progress ...
 
@@ -33,7 +34,7 @@ Alternatively, you can download the files 'bulk_rnaseq.tar.gz' and 'sc_rnaseq.ta
 
 ## Run files
 
-The pipeline is runnable via the run files: 'runProcessing.R', 'runDE.R' and 'runAnalysis.R', respectively.
+The pipeline is runnable via the run files: 'runProcessing.R', 'runMetacell.R', 'runDE.R' and 'runAnalysis.R', respectively.
 
 Any file can be run with:
 ```
@@ -55,3 +56,18 @@ args <- "myConfigFilePath"
 .libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 ```
 with what is needed accordingly.
+
+### runProcessing.R
+This load the raw data and apply all the processing on bulk and single-cell data. It is advised to choose the filtering parameters according to the quality control figures obtained after the first run, then re-run with appropriate parameters.
+
+
+### runMetacell.R
+This creates the Metacells at different size level and store the footprint matrix and cell memberships.
+Careful, the Metacell package uses heavy computation functions, this could take a while to run.
+
+
+### runDE.R
+It contains all the differential expression computations for single-cell, bulk, pseudo-bulk, supercell, metacell, subsampling and random grouping.
+Please check the dependencies as this requires another version of SuperCell.
+
+You can select in the config file which DEs you want to run, as running everything may not be physically feasible due to the memory needed.

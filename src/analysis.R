@@ -145,7 +145,7 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 
 
 # Computation of logFC and p-values for passed data with seurat or hyp test
-find_markers <- function(data, stat.test, seurat = T){
+find_markers <- function(data, stat.test, seurat = F){
     
     data <- NormalizeData(data)
     
@@ -159,7 +159,7 @@ find_markers <- function(data, stat.test, seurat = T){
                     only.pos = F, 
                     logfc.threshold = 0, 
                     test.use = stat.test)
-        return(arrange(DE,
+        return(arrangeDE(DE,
                        oldNameLog = 'avg_log2FC',
                        oldNameP = 'p_val_adj'))
     }

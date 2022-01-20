@@ -65,6 +65,8 @@ This load the raw data and apply all the processing on bulk and single-cell data
 This creates the Metacells at different size level and store the footprint matrix and cell memberships.
 Careful, the Metacell package uses heavy computation functions, this could take a while to run.
 
+In case of frequent crashes, a modified version is available [here](https://github.com/michelhugo/metacell).
+
 
 ### runDE.R
 It contains all the differential expression computations for single-cell, bulk, pseudo-bulk, supercell, metacell, subsampling and random grouping.

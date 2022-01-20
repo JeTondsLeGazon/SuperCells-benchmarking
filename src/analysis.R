@@ -182,7 +182,7 @@ find_markers <- function(data, stat.test, seurat = F){
                     p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)
-    return(arrageDE(r))
+    return(arrangeDE(r))
 }
 
 

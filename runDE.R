@@ -70,6 +70,8 @@ computeMetaSuper <- config$DE$computeMetaSuper
 computeMetaSuperDes <- config$DE$computeMetaSuperDes
 computeMetaSuperEdge <- config$DE$computeMetaSuperEdge
 computeRandomGroup <- config$DE$computeRandomGroup
+computeRandomGroupDes <- config$DE$computeRandomGroupDes
+computeRandomGroupEdge <- config$DE$computeRandomGroupEdge
 
 gammas <- config$gammas
 
@@ -115,7 +117,7 @@ if(computeBulk){
 # ---------------------------------------------------------
 if(computeBulkManual){
     message('Computing Bulk DE genes manually')
-    manual_bulk_markers <- arrangeDE(find_markers_bulk(bulk_filtered_data, stat.test))
+    manual_bulk_markers <- arrangeDE(find_markers(bulk_filtered_data, stat.test))
     saveRDS(manual_bulk_markers, file.path(results_folder, "bulkMarkersManual.rds"))
     message('Done computing Bulk DE genes manually')
     
@@ -145,7 +147,7 @@ if(computePseudo){
 # ---------------------------------------------------------
 if(computePseudoManual){
     message('Computing Pseudo-bulk DE genes manually')
-    pseudo_markers_manual <- find_markers_bulk(pseudobulk_norm, stat.test) %>%
+    pseudo_markers_manual <- find_markers(pseudobulk_norm, stat.test) %>%
         arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
         mutate(gene = row.names(.)) %>%
         subset(logFC > 0)
@@ -279,7 +281,7 @@ if(computeSingle){
 # ---------------------------------------------------------
 if(computeSingleManual){
     message('Computing Single cells DE genes manually')
-    manual_single_markers <- find_markers_bulk(sc_clustered_data, stat.test)
+    manual_single_markers <- find_markers(sc_clustered_data, stat.test)
     manual_single_markers <- manual_single_markers %>% 
         arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
         mutate(gene = rownames(.)) %>%
@@ -309,7 +311,7 @@ if(computeMeta){
         Idents(mc_data) <- 'label'
         
         # Run DE
-        metacell_markers_manual <- find_markers_bulk(mc_data, stat.test)
+        metacell_markers_manual <- find_markers(mc_data, stat.test)
         metacell_markers_manual <- arrangeDE(metacell_markers_manual)
         DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
@@ -531,7 +533,7 @@ if(computeRandomGroup){
         rdmData <- CreateSeuratObject(randomGrp, 
                                       meta.data = data.frame(label = labels, rownames = colnames(randomGrp)))
         Idents(rdmData) <- 'label'
-        DE <- find_markers_bulk(rdmData, stat.test)
+        DE <- find_markers(rdmData, stat.test)
         DEs[[as.character(gamma)]] <- arrangeDE(DE)
     }
     saveRDS(DEs, file.path(results_folder, 'randomGrouping.rds'))
@@ -582,10 +584,11 @@ if(computeRandomGroup){
 # ---------------------------------------------------------
 if(computeRandomGroup){
     message('Computing Random grouping EdgeR')
+    memory.limit(size=56000)
     ge <- GetAssayData(sc_filtered_data)
     samples <- unique(sc_filtered_data$sample)
     DEs <- list()
-    for(gamma in gammas){
+    for(gamma in gammas[c(-1, -2)]){
         tmp <- lapply(samples, function(x) randomGrouping(ge[, which(sc_filtered_data$sample == x)], 
                                                           gamma,
                                                           operation = 'sum'))
@@ -604,9 +607,85 @@ if(computeRandomGroup){
         
         # Quasi likelihood test
         fit <- glmQLFit(edge, model)
-        DEs[[as.character(mc_gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
+        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                    oldNameP = 'PValue')
     }
     saveRDS(DEs, file.path(results_folder, 'randomGroupingEdge.rds'))
     message('Done computing Random grouping EdgeR')
+}
+
+
+# ---------------------------------------------------------
+# Subsampling
+# ---------------------------------------------------------
+if(computeSubSampling){
+    message('Computing Subsampling t-test')
+    nCols <- ncol(sc_clustered_data)
+    DEs <- list()
+    for(gamma in gammas){
+        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
+        sc_clustered_data$tmp <- F
+        sc_clustered_data$tmp[useCols] <- T
+        data <- subset(sc_clustered_data, subset = tmp == T)
+        DE <- find_markers(data, stat.test)
+        DEs[[as.character(gamma)]] <- arrangeDE(DE)
+    }
+    saveRDS(DEs, file.path(results_folder, 'subSampling.rds'))
+    message('Done computing Subsampling t-test')
+}
+
+
+# ---------------------------------------------------------
+# Subsampling DESeq2
+# ---------------------------------------------------------
+if(computeSubSampling){
+    message('Computing Subsampling DESeq2')
+    nCols <- ncol(sc_clustered_data)
+    DEs <- list()
+    for(gamma in gammas[c(-1, -2)]){
+        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
+        
+        ge <- GetAssayData(sc_filtered_data)[, useCols]
+        labels <- data.frame(label = sc_filtered_data$label[useCols])
+        dds <- DESeqDataSetFromMatrix(ge,
+                                      colData = labels, 
+                                      design = ~ label)
+        
+        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
+        results_wald <- results(dds_wald)
+        
+        DEs[[as.character(gamma)]] <- arrangeDE(results_wald, 
+                                                   oldNameLog = 'log2FoldChange',
+                                                   oldNameP = 'padj')
+    }
+    saveRDS(DEs, file.path(results_folder, 'subSamplingDes.rds'))
+    message('Done computing Subsampling DESeq2')
+}
+
+# ---------------------------------------------------------
+# Subsampling EdgeR
+# ---------------------------------------------------------
+if(computeSubSampling){
+    message('Computing Subsampling EdgeR')
+    nCols <- ncol(sc_clustered_data)
+    DEs <- list()
+    for(gamma in gammas[c(-1, -2)]){
+        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
+        
+        ge <- GetAssayData(sc_filtered_data)[, useCols]
+        labels <- sc_filtered_data$label[useCols]
+        
+        # EdgeR DE
+        edge <- DGEList(counts = ge, group = labels)
+        edge <- calcNormFactors(edge)
+        model <- model.matrix(~labels)
+        edge <- estimateDisp(edge, model)
+        
+        # Quasi likelihood test
+        fit <- glmQLFit(edge, model)
+        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
+                                                oldNameP = 'PValue')
+    }
+    saveRDS(DEs, file.path(results_folder, 'subSamplingDes.rds'))
+    message('Done computing Subsampling EdgeR')
 }

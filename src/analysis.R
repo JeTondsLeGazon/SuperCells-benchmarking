@@ -144,16 +144,16 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 }
 
 
-# Manual computation of logFC and t-test for bulk data
-find_markers_bulk <- function(bulkData, stat.test){
+# Manual computation of logFC and t-test for passed data
+find_markers <- function(data, stat.test){
     
-    bulkData <- NormalizeData(bulkData)
+    data <- NormalizeData(data)
     
-    treat_grp <- grep('treat|[Ll][Pp][Ss]', Idents(bulkData))
-    ctrl_grp <- grep('ctrl|[Uu][Nn][Ss][Tt]', Idents(bulkData))
+    treat_grp <- grep('treat|[Ll][Pp][Ss]', Idents(data))
+    ctrl_grp <- grep('ctrl|[Uu][Nn][Ss][Tt]', Idents(data))
     
     #Log FC computation
-    tmp <- expm1(GetAssayData(bulkData)) %>% data.frame()
+    tmp <- expm1(GetAssayData(data)) %>% data.frame()
     grp1 <- rowMeans(tmp[, treat_grp])
     grp2 <- rowMeans(tmp[, ctrl_grp])
     logFCs <- log1p(grp1) - log1p(grp2)  # must do like this otherwise may / 0
@@ -164,10 +164,10 @@ find_markers_bulk <- function(bulkData, stat.test){
     }else{
         hyp.test <- t.test
     }
-    ge <- GetAssayData(bulkData)
+    ge <- GetAssayData(data)
     pvals <- apply(ge, 1, function(x) hyp.test(x[treat_grp], x[ctrl_grp])$p.value)
     padj <- p.adjust(pvals, 'BH', nrow(ge))
-    r <- data.frame(row.names = rownames(bulkData),
+    r <- data.frame(row.names = rownames(data),
                     p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)

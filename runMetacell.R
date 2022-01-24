@@ -11,13 +11,13 @@ if(.Platform$OS.type == 'windows'){
 }
 
 args <- commandArgs(trailingOnly = TRUE)
-
+args <- 'configs/hagai_mouse_lps_config.yml'
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
 
 # SHOULD BE CHANGED ACCORDINGLY TO LOCATIONS OF R LIBRARIES
-.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
+#.libPaths("C:/Users/miche/OneDrive/Documents/R/win-library/4.1")
 
 
 # ---------------------------------------------------------
@@ -62,18 +62,19 @@ dir.create(results_folder, showWarnings = F, recursive = T)
 # ---------------------------------------------------------
 # Data loadings
 # ---------------------------------------------------------
-sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
-samples <- unique(sc_filtered_data$sample)
+mydata<- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
+samples <- unique(mydata$sample)
 
 # data should be in 10x format for metacell to work
 for(sample in samples){
   path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
   write10xCounts(path = path_per_sample, 
-                 x = GetAssayData(sc_filtered_data)[, which(sc_filtered_data$sample == sample)], 
+                 x = GetAssayData(mydata)[, which(mydata$sample == sample)], 
                  overwrite = T)
 }
 
-rm('sc_filtered_data')
+rm(mydata)
+print('OK saving')
 # ---------------------------------------------------------
 # Metacells creation
 # ---------------------------------------------------------

@@ -13,7 +13,7 @@ superCells_DE <- function(data,  # gene expression matrix counts
 )
 {
     
-    super <- superCells_GE(data, gamma)
+    super <- createSuperCells(data, gamma)
     
     # DE per cluster group
     clusters <- unique(super$cell_line)

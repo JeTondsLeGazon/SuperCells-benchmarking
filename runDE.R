@@ -7,7 +7,7 @@
 # Header
 # ---------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-
+args <- 'configs/hagai_mouse_lps_config.yml'
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
@@ -35,12 +35,13 @@ library(tidyseurat)
 library(ggExtra)
 library(weights)
 library(zoo)
+library(SuperCellBM)
 
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
 
-
+#TODO: Check Idents vs label for sc clustered !!! 
 # ---------------------------------------------------------
 # Meta parameters
 # ---------------------------------------------------------
@@ -94,7 +95,6 @@ if(!dir.exists(data_folder)){
 }
 
 sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
-Idents(sc_clustered_data) <- 'label'
 sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
 pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulk.rds"))
 pseudobulk_norm <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
@@ -166,14 +166,15 @@ if(computePseudoManual){
 
 
 # ---------------------------------------------------------
-# DE supercells (weighted and unweighted)
+# DE supercells (unweighted)
 # ---------------------------------------------------------
 if(computeSuper){
     message('Computing SuperCell DE genes')
     memory.limit(size=56000)
     super_markers <- superCells_DEs(sc_clustered_data, gammas, 5,
                                     weighted = F,
-                                    test.use = stat.test)
+                                    test.use = stat.test,
+                                    method = 'bm')
     
     volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
         ggtitle('Volcano plot of SuperCells at level gamma = 5') +
@@ -182,16 +183,6 @@ if(computeSuper){
     super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
     saveRDS(super_markers, file.path(results_folder, "superMarkers.rds"))
     message('Done computing SuperCell DE genes')
-    
-    message('Computing SuperCell DE genes with weighted t-test')
-    super_markers_weighted <- superCells_DEs(sc_clustered_data, gammas, 5,
-                                    weighted = T,
-                                    test.use = stat.test)
-    
-    super_markers_weighted <- lapply(super_markers_weighted, 
-                                     function(x) subset(x, logFC > 0))
-    saveRDS(super_markers_weighted, file.path(results_folder, "superMarkersWeighted.rds"))
-    message('Done computing SuperCell DE genes with weighted t-test')
 }
 
 
@@ -202,14 +193,14 @@ if(computeSuperDes){
     message('Computing SuperCell DE genes with DESeq2')
     super_markers_des <- list()
     
-    for(gamma in gammas){
+    for(gamma in gammas[c(-1, -2)]){
         message('\tGamma = ', gamma)
         # supercells creation with geometric mean as using counts here
-        super <- createSuperCells(sc_filtered_data, gamma, arithmetic = FALSE)
+        super <- createSuperCellsBM(sc_filtered_data, gamma, F)
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = super$sc.cell.annotation., 
-                                      design = ~ sc.cell.annotation.)
+                                      colData = data.frame(design = super$cell_line), 
+                                      design = ~ design)
         
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
         results_wald <- results(dds_wald)
@@ -229,15 +220,15 @@ if(computeSuperDes){
 # Saves at each gamma to avoid loss of information in case of crash
 if(computeSuperEdge){
     message('Computing SuperCell DE genes with EdgeR')
-    for(gamma in gammas){
+    for(gamma in gammas[c(-1, -2)]){
         message('\tGamma = ', gamma)
         # supercells creation with geometric mean as using counts here
-        super <- createSuperCells(sc_filtered_data, gamma, arithmetic = FALSE)
+        super <- createSuperCellsBM(sc_filtered_data, gamma, F)
         
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-        edge <- DGEList(counts = ge, group = super$sc.cell.annotation.)
+        edge <- DGEList(counts = ge, group = super$cell_line)
         edge <- calcNormFactors(edge)
-        model <- model.matrix(~design)
+        model <- model.matrix(~super$cell_line)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test
@@ -301,7 +292,7 @@ if(computeSingleManual){
 
 
 # ---------------------------------------------------------
-# Metacell GE t-test
+# Metacell t-test
 # ---------------------------------------------------------
 # should run runMeta.R first
 if(computeMeta){
@@ -320,7 +311,7 @@ if(computeMeta){
         Idents(mc_data) <- 'label'
         
         # Run DE
-        metacell_markers_manual <- find_markers(mc_data, stat.test)
+        metacell_markers_manual <- find_markers(mc_data, stat.test, norm = F)
         DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
     saveRDS(DEs, file.path(results_folder, "metaGEMarkersManual.rds"))
@@ -526,22 +517,40 @@ if(computeMetaSuperEdge){
 # ---------------------------------------------------------
 if(computeRandomGroup){
     message('Computing Random grouping t-test')
-    ge <- GetAssayData(sc_filtered_data)
-    samples <- unique(sc_filtered_data$sample)
+    data = sc_filtered_data
     DEs <- list()
-    for(gamma in gammas){
-        tmp <- lapply(samples, function(x) randomGrouping(ge[, which(sc_filtered_data$sample == x)], gamma))
-        randomGrp <- tmp[[1]]
-        labels <- rep(samples[1], ncol(tmp[[1]]))
-        for(i in seq(2:length(tmp))){
-            randomGrp <- cbind(randomGrp, tmp[[i]])
-            labels <- c(labels, rep(samples[i], ncol(tmp[[i]])))
-        }
-        colnames(randomGrp) <- as.character(seq(1:ncol(randomGrp)))
-        rdmData <- CreateSeuratObject(randomGrp, 
-                                      meta.data = data.frame(label = labels, rownames = colnames(randomGrp)))
-        Idents(rdmData) <- 'label'
-        DEs[[as.character(gamma)]] <- find_markers(rdmData, stat.test)
+    for(gamma in gammas[c(-1, -2)]){
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        super <- SC.list$Random[[as.character(gamma)]][[1]]
+        super$cell_line <- supercell_assign(clusters = Idents(data),
+                                            supercell_membership = super$membership,
+                                            method = "jaccard")
+        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+        rdm_markers <- supercell_FindMarkers(ge = super$GE,
+                                       supercell_size = super$supercell_size,
+                                       clusters = super$cell_line,
+                                       ident.1 = 'treat',
+                                       ident.2 = 'ctrl',
+                                       logfc.threshold = 0,
+                                       only.pos = F,
+                                       do.bootstrapping = F,
+                                       test.use = stat.test)
+        
+        DEs[[as.character(gamma)]] <- rdm_markers
     }
     saveRDS(DEs, file.path(results_folder, 'randomGrouping.rds'))
     message('Done computing Random grouping t-test')
@@ -554,31 +563,40 @@ if(computeRandomGroup){
 if(computeRandomGroupDes){
     memory.limit(size=56000)
     message('Computing Random grouping DESeq2')
-    ge <- GetAssayData(sc_filtered_data)
-    samples <- unique(sc_filtered_data$sample)
     DEs <- list()
-    for(gamma in gammas){
-        tmp <- lapply(samples, function(x) randomGrouping(ge[, which(sc_filtered_data$sample == x)], 
-                                                          gamma,
-                                                          operation = 'sum'))
-        randomGrp <- tmp[[1]]
-        labels <- rep(samples[1], ncol(tmp[[1]]))
-        for(i in seq(2:length(tmp))){
-            randomGrp <- cbind(randomGrp, tmp[[i]])
-            labels <- c(labels, rep(samples[i], ncol(tmp[[i]])))
-        }
-        colnames(randomGrp) <- as.character(seq(1:ncol(randomGrp)))
-        labels <- sapply(labels, function(x) substr(x, 1, nchar(x) - 1))
-        dds <- DESeqDataSetFromMatrix(randomGrp,
-                                      colData = data.frame(labels = labels), 
-                                      design = ~ labels)
+    data = sc_filtered_data
+    for(gamma in gammas[c(-1, -2)]){
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        super <- SC.list$Random[[as.character(gamma)]][[1]]
+        super$cell_line <- supercell_assign(clusters = Idents(data),
+                                            supercell_membership = super$membership,
+                                            method = "jaccard")
+        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+        dds <- DESeqDataSetFromMatrix(ge,
+                                      colData = data.frame(design = super$cell_line), 
+                                      design = ~ design)
         
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
         results_wald <- results(dds_wald)
         
         DEs[[as.character(gamma)]] <- arrangeDE(results_wald, 
-                                                oldNameLog = 'log2FoldChange',
-                                                oldNameP = 'padj')
+                                                   oldNameLog = 'log2FoldChange',
+                                                   oldNameP = 'padj')
     }
     saveRDS(DEs, file.path(results_folder, 'randomGroupingDes.rds'))
     message('Done computing Random grouping DESeq2')
@@ -590,26 +608,36 @@ if(computeRandomGroupDes){
 # Random grouping EdgeR
 # ---------------------------------------------------------
 if(computeRandomGroupEdge){
-    message('Computing Random grouping EdgeR')
     memory.limit(size=56000)
-    ge <- GetAssayData(sc_filtered_data)
-    samples <- unique(sc_filtered_data$sample)
+    message('Computing Random grouping DESeq2')
     DEs <- list()
+    data = sc_filtered_data
     for(gamma in gammas[c(-1, -2)]){
-        tmp <- lapply(samples, function(x) randomGrouping(ge[, which(sc_filtered_data$sample == x)], 
-                                                          gamma,
-                                                          operation = 'sum'))
-        randomGrp <- tmp[[1]]
-        labels <- rep(samples[1], ncol(tmp[[1]]))
-        for(i in seq(2:length(tmp))){
-            randomGrp <- cbind(randomGrp, tmp[[i]])
-            labels <- c(labels, rep(samples[i], ncol(tmp[[i]])))
-        }
-        colnames(randomGrp) <- as.character(seq(1:ncol(randomGrp)))
-        labels <- sapply(labels, function(x) substr(x, 1, nchar(x) - 1))
-        edge <- DGEList(counts = randomGrp, group = labels)
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        super <- SC.list$Random[[as.character(gamma)]][[1]]
+        super$cell_line <- supercell_assign(clusters = Idents(data),
+                                            supercell_membership = super$membership,
+                                            method = "jaccard")
+        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
+
+        edge <- DGEList(counts = ge, group = super$cell_line)
         edge <- calcNormFactors(edge)
-        model <- model.matrix(~labels)
+        model <- model.matrix(~super$cell_line)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test
@@ -627,15 +655,30 @@ if(computeRandomGroupEdge){
 # ---------------------------------------------------------
 if(computeSubSampling){
     message('Computing Subsampling t-test')
-    nCols <- ncol(sc_clustered_data)
+    data = sc_filtered_data
     DEs <- list()
-    for(gamma in gammas){
-        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
-        sc_clustered_data$tmp <- F
-        sc_clustered_data$tmp[useCols] <- T
-        data <- subset(sc_clustered_data, subset = tmp == T)
-        Idents(data) <- 'label'
-        DEs[[as.character(gamma)]] <- find_markers(data, stat.test)
+    for(gamma in gammas[c(-1, -2)]){
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
+        data$keep <- rep(F, ncol(data))
+        data$keep[cells.idx] <- T
+        keep.data <- subset(data, subset = keep == T)
+        sub_markers <- find_markers(keep.data, stat.test)
+        DEs[[as.character(gamma)]] <- sub_markers
     }
     saveRDS(DEs, file.path(results_folder, 'subSampling.rds'))
     message('Done computing Subsampling t-test')
@@ -647,13 +690,27 @@ if(computeSubSampling){
 # ---------------------------------------------------------
 if(computeSubSamplingDes){
     message('Computing Subsampling DESeq2')
-    nCols <- ncol(sc_clustered_data)
+    data = sc_filtered_data
     DEs <- list()
     for(gamma in gammas[c(-1, -2)]){
-        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
-        
-        ge <- GetAssayData(sc_filtered_data)[, useCols]
-        labels <- data.frame(label = sc_filtered_data$label[useCols])
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
+        ge <- GetAssayData(sc_filtered_data)[, cells.idx]
+        labels <- data.frame(label = data$label[cells.idx])
         dds <- DESeqDataSetFromMatrix(ge,
                                       colData = labels, 
                                       design = ~ label)
@@ -674,13 +731,27 @@ if(computeSubSamplingDes){
 # ---------------------------------------------------------
 if(computeSubSamplingEdge){
     message('Computing Subsampling EdgeR')
-    nCols <- ncol(sc_clustered_data)
+    data = sc_filtered_data
     DEs <- list()
     for(gamma in gammas[c(-1, -2)]){
-        useCols <- sample(seq(1:nCols), floor(nCols / gamma))
-        
-        ge <- GetAssayData(sc_filtered_data)[, useCols]
-        labels <- sc_filtered_data$label[useCols]
+        SC.list <- compute_supercells(
+            sc = data,
+            ToComputeSC = T,
+            data.folder = 'data/',
+            filename = paste0('superCells', gamma),
+            gamma.seq = c(gamma),
+            n.var.genes = 1000,
+            k.knn = 5,
+            n.pc = 10,
+            approx.N = 1000,
+            fast.pca = TRUE,
+            genes.use = NULL, 
+            genes.exclude = NULL,
+            seed.seq = c(0)
+        )
+        cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
+        ge <- GetAssayData(sc_filtered_data)[, cells.idx]
+        labels <- data$label[cells.idx]
         
         # EdgeR DE
         edge <- DGEList(counts = ge, group = labels)

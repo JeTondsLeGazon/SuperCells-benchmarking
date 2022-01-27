@@ -41,7 +41,7 @@ source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
 
-#TODO: Check Idents vs label for sc clustered !!! 
+
 # ---------------------------------------------------------
 # Meta parameters
 # ---------------------------------------------------------
@@ -298,12 +298,12 @@ if(computeSingleManual){
 if(computeMeta){
     # Metacell own GE matrix from pipeline, manual t-test
     message('Computing MetaCells DE genes with t-test')
-    GEs <- createMCGE(sc_filtered_data, results_folder)
-    mc_gammas <- names(GEs)
+    mc <- readRDS('data/hagai_mouse_lps_data/MCdefault.rds')
+    mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
         # create seurat object
-        ge <- GEs[[mc_gamma]]
+        ge <- mc[[mc_gamma]]
         labels <- rep('ctrl', ncol(ge))
         labels[grep('treat', colnames(ge))] <- 'treat'
         meta <- data.frame(label = labels, row.names = colnames(ge))

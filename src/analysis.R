@@ -145,17 +145,18 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 
 
 # Computation of logFC and p-values for passed data with seurat or hyp test
+# 
 find_markers <- function(data, stat.test, seurat = F){
     
     data <- NormalizeData(data)
     
-    treat_grp <- grep('treat|[Ll][Pp][Ss]', Idents(data))
-    ctrl_grp <- grep('ctrl|[Uu][Nn][Ss][Tt]', Idents(data))
+    treat_grp <- grep('treat', Idents(data))
+    ctrl_grp <- grep('ctrl', Idents(data))
     
     if(seurat){
         DE <- FindMarkers(data,
-                    ident.1 = 'treat',
-                    ident.2 = 'ctrl',
+                    ident.1 = treat_grp,
+                    ident.2 = ctrl_grp,
                     only.pos = F, 
                     logfc.threshold = 0, 
                     test.use = stat.test)
@@ -252,13 +253,18 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
                      paste(super_mc_legend, names(others)[i], sep = ' vs '))
     }
     if(score.type == 'match'){
-        title <- sprintf('True positive rate among the top 100 DE genes between %s and Ground truth', tag)
+        title <- sprintf('True positive rate among the top 100 DE genes against Ground truth(Bulk)', tag)
     }else if (score.type == 'auc'){
-        title <- sprintf('AUROC of DE genes between %s and Ground truth', tag)
+        title <- sprintf('AUROC of DE genes against Ground truth(Bulk)', tag)
     }else if(score.type == 'tpr'){
-        title <- sprintf('True positive rate of DE genes between %s and Ground truth', tag)
+        title <- sprintf('True positive rate of DE genes against Ground truth(Bulk)', tag)
     }
-    legend('topright', 
+    if(score.type == 'tpr'){
+        legend.pos <- 'bottomleft'
+    }else{
+        legend.pos <- 'topright'
+    }
+    legend(legend.pos, 
            legend = legends, 
            col = colors, 
            pch = chr[seq_along(others)])

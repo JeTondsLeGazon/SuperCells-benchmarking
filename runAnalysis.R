@@ -7,7 +7,7 @@
 # Header
 # ---------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-
+args <- 'configs/hagai_mouse_lps_config.yml'
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }
@@ -92,9 +92,9 @@ mc_sc_markers <- readRDS(file.path(results_folder, 'metaSuperMarkers.rds'))
 mc_sc_markers_edge <- readRDS(file.path(results_folder, 'metaSuperMarkersEdge.rds'))
 mc_sc_markers_des <- readRDS(file.path(results_folder, 'metaSuperMarkersDes.rds'))
 
-random_markers <- readRDS(file.path(results_folder, 'metaSuperMarkers.rds'))
-random_markers_des <- readRDS(file.path(results_folder, 'metaSuperMarkersDes.rds'))
-random_markers_edge <- readRDS(file.path(results_folder, 'metaSuperMarkersEdge.rds'))
+random_markers <- readRDS(file.path(results_folder, 'randomGrouping.rds'))
+random_markers_des <- readRDS(file.path(results_folder, 'randomGroupingDes.rds'))
+random_markers_edge <- readRDS(file.path(results_folder, 'randomGroupingEdge.rds'))
 
 sub_sampling <- readRDS(file.path(results_folder, 'subSampling.rds'))
 sub_sampling_des <- readRDS(file.path(results_folder, 'subSamplingDes.rds'))
@@ -105,8 +105,8 @@ sub_sampling_edge <- readRDS(file.path(results_folder, 'subSamplingEdge.rds'))
 # Comparison
 # ---------------------------------------------------------
 su_mc <- list('super_t' = super_markers,
-              'mc_t' = mc_markers,
-              'mc_sc_t' = mc_sc_markers, 
+              #'mc_t' = mc_markers,
+              #'mc_sc_t' = mc_sc_markers, 
               'random_t' = random_markers,
               'sub_t' = sub_sampling)
 

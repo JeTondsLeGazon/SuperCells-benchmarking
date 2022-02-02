@@ -146,9 +146,11 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 
 # Computation of logFC and p-values for passed data with seurat or hyp test
 # 
-find_markers <- function(data, stat.test, seurat = F){
+find_markers <- function(data, stat.test, seurat = F, norm = T){
     
-    data <- NormalizeData(data)
+    if(norm){
+        data <- NormalizeData(data)
+    }
     
     treat_grp <- grep('treat', Idents(data))
     ctrl_grp <- grep('ctrl', Idents(data))
@@ -219,25 +221,33 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
     if(length(others) == 1){
         others <- rep(others, length(super_mc), simpifly = F)
     }
-    
-    chr <- c(1, 4, 8, 2, 3, 4, 3)
-    colors <- c('brown2', 'darkgreen', 'gold', 'black', 'grey')
+
+    chr.used <- c()
+    colors.used <- c()
     legends <- c()
     for (i in seq_along(others)){
         matching <- unlist(lapply(super_mc[[i]], function(x) score_func(others[[i]], x)))
         gammas <- as.numeric(names(super_mc[[i]]))
-        points(gammas, matching, col = colors[i], pch = chr[i], cex = 1.5)
-        lines(gammas, matching, col = colors[i] , lwd = 1.5)
-        if(grepl('mc_sc', names(super_mc)[i])){
+        if(grepl('metasc', names(super_mc)[i])){
             tag <- 'MetaCells Super'
-        }else if(grepl('mc', names(super_mc)[i])){
+            chr.used <- c(chr.used, 8)
+            colors.used <- c(colors.used, 'gold')
+        }else if(grepl('meta', names(super_mc)[i])){
             tag <- 'MetaCells'
+            chr.used <- c(chr.used, 4)
+            colors.used <- c(colors.used, 'darkgreen')
         }else if(grepl('super', names(super_mc)[i])){
             tag <- 'SuperCells'
+            chr.used <- c(chr.used, 1)
+            colors.used <- c(colors.used, 'brown2')
         }else if(grepl('sub', names(super_mc)[i])){
             tag <- 'Subsampling'
+            chr.used <- c(chr.used, 2)
+            colors.used <- c(colors.used, 'black')
         }else{
             tag <- 'Random grouping'
+            chr.used <- c(chr.used, 3)
+            colors.used <- c(colors.used, 'grey')
         }
         if(grepl('t$', names(super_mc[i]))){
             testTag <- 't-test'
@@ -248,6 +258,8 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
         }else{
             testTag <- 'EdgeR'
         }
+        points(gammas, matching, col = colors.used[length(colors.used)], pch = chr.used[length(chr.used)], cex = 1.5)
+        lines(gammas, matching, col = colors.used[length(colors.used)] , lwd = 1.5)
         super_mc_legend <- paste0(tag, ' (', testTag, ')')
         legends <- c(legends, 
                      paste(super_mc_legend, names(others)[i], sep = ' vs '))
@@ -266,8 +278,8 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
     }
     legend(legend.pos, 
            legend = legends, 
-           col = colors, 
-           pch = chr[seq_along(others)])
+           col = colors.used, 
+           pch = chr.used)
     title(title)
     grid()
 }

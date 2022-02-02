@@ -451,3 +451,29 @@ randomGrouping <- function(data, gamma, operation = 'mean'){
     colnames(res) <- seq(1:grpNum)
     return(res)
 }
+
+
+# Save markers in appropriate folder with suitable name
+saveMarkers <- function(markers,
+                        algo,
+                        split.by,
+                        base.path,
+                        kind){
+    if((!algo %in% c('DESeq2', 'EdgeR', 't-test')) | 
+       (!kind %in% c('super', 'subsampling', 'random', 'bulk', 'meta', 'metasc'))){
+        stop('Could not save markers')
+    }
+
+    stat.method <- switch(algo, 'DESeq2' = 'des', 'EdgeR' = 'edge', 't-test' = 't')
+    filename <- paste0(paste(kind, stat.method, sep = '_'), '.rds')
+    if(kind != 'bulk'){
+        top.dir <- paste('markers', split.by, sep = '_')
+    }else{
+        top.dir <- 'GT'
+    }
+    full.dir <- file.path(base.path, top.dir)
+    if(!dir.exists(full.dir)){
+        dir.create(full.dir, recursive = T)
+    }
+    saveRDS(markers, file.path(full.dir, filename))
+}

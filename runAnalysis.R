@@ -48,6 +48,7 @@ config <- config::get(file = args[1])
 filename <- config$filename
 data_folder <- file.path("data", config$intermediaryDataFile)
 results_folder <- file.path("data", config$resultsFile)
+markers_folder <- paste('markers', config$splitBy, sep = '_')
 
 stat.test <- config$statTest
 weighted <- config$weightedSuperCells
@@ -77,40 +78,52 @@ bulk_filtered_data <- readRDS(file = file.path(data_folder, "bulkFiltered.rds"))
 bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
 # DE markers
-bulk_markers <- readRDS(file.path(results_folder, "bulkMarkers.rds"))
-bulk_markers_manual <- readRDS(file.path(results_folder, "bulkMarkersManual.rds"))
+bulk_markers <- readRDS(file.path(results_folder, 'GT', "bulk_t.rds"))
+bulk_markers_des <- readRDS(file.path(results_folder, 'GT', "bulk_des.rds"))
+bulk_markers_edge <- readRDS(file.path(results_folder, 'GT', "bulk_edge.rds"))
 
-super_markers <- readRDS(file.path(results_folder, "superMarkers.rds"))
-super_markers_des <- readRDS(file.path(results_folder, "superMarkersDes.rds"))
-super_markers_edge <- readRDS(file.path(results_folder, "superMarkersEdge.rds"))
+super_markers <- readRDS(file.path(results_folder, markers_folder, "super_t.rds"))
+super_markers_des <- readRDS(file.path(results_folder, markers_folder, "super_des.rds"))
+super_markers_edge <- readRDS(file.path(results_folder, markers_folder, "super_edge.rds"))
 
-mc_markers <- readRDS(file.path(results_folder, 'metaGEMarkersManual.rds'))
-mc_markers_edge <- readRDS(file.path(results_folder, 'metaGEMarkersEdge.rds'))
-mc_markers_des <- readRDS(file.path(results_folder, 'metaGEMarkersDes.rds'))
+mc_markers <- readRDS(file.path(results_folder, markers_folder, 'meta_t.rds'))
+mc_markers_edge <- readRDS(file.path(results_folder, markers_folder, 'meta_edge.rds'))
+mc_markers_des <- readRDS(file.path(results_folder, markers_folder, 'meta_des.rds'))
 
-mc_sc_markers <- readRDS(file.path(results_folder, 'metaSuperMarkers.rds'))
-mc_sc_markers_edge <- readRDS(file.path(results_folder, 'metaSuperMarkersEdge.rds'))
-mc_sc_markers_des <- readRDS(file.path(results_folder, 'metaSuperMarkersDes.rds'))
+mc_sc_markers <- readRDS(file.path(results_folder,markers_folder, 'metasc_t.rds'))
+mc_sc_markers_edge <- readRDS(file.path(results_folder, markers_folder, 'metasc_edge.rds'))
+mc_sc_markers_des <- readRDS(file.path(results_folder, markers_folder, 'metasc_des.rds'))
 
-random_markers <- readRDS(file.path(results_folder, 'randomGrouping.rds'))
-random_markers_des <- readRDS(file.path(results_folder, 'randomGroupingDes.rds'))
-random_markers_edge <- readRDS(file.path(results_folder, 'randomGroupingEdge.rds'))
+random_markers <- readRDS(file.path(results_folder, markers_folder, 'random_t.rds'))
+random_markers_des <- readRDS(file.path(results_folder, markers_folder, 'random_des.rds'))
+random_markers_edge <- readRDS(file.path(results_folder, markers_folder, 'random_edge.rds'))
 
-sub_sampling <- readRDS(file.path(results_folder, 'subSampling.rds'))
-sub_sampling_des <- readRDS(file.path(results_folder, 'subSamplingDes.rds'))
-sub_sampling_edge <- readRDS(file.path(results_folder, 'subSamplingEdge.rds'))
+sub_sampling <- readRDS(file.path(results_folder, markers_folder, 'subsampling_t.rds'))
+sub_sampling_des <- readRDS(file.path(results_folder, markers_folder, 'subsampling_des.rds'))
+sub_sampling_edge <- readRDS(file.path(results_folder, markers_folder, 'subsampling_edge.rds'))
 
 
 # ---------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------
 su_mc <- list('super_t' = super_markers,
-              #'mc_t' = mc_markers,
-              #'mc_sc_t' = mc_sc_markers, 
+              'meta_t' = mc_markers,
+              'metasc_t' = mc_sc_markers, 
               'random_t' = random_markers,
               'sub_t' = sub_sampling)
 
-comp <- list('Bulk (t-test)' = bulk_markers_manual)
+comp <- list('Bulk (t-test)' = bulk_markers)
+for(score.type in c('auc', 'tpr', 'match')){
+    plot_results_flex(su_mc, comp, score.type = score.type)
+}
+
+su_mc <- list('super_des' = super_markers_des,
+              'mc_des' = mc_markers_des,
+              'mc_sc_des' = mc_sc_markers_des, 
+              'random_des' = random_markers_des,
+              'sub_des' = sub_sampling_des)
+
+comp <- list('Bulk (DESeq2)' = bulk_markers_des)
 for(score.type in c('auc', 'tpr', 'match')){
     plot_results_flex(su_mc, comp, score.type = score.type)
 }

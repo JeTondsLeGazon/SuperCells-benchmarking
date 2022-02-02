@@ -54,6 +54,9 @@ dir.create(results_folder, showWarnings = F, recursive = T)
 
 stat.test <- config$statTest
 
+# Split either by condition or sample
+split.by <- config$splitBy
+
 # Should we compute these DE ?
 computeSingle <- config$DE$computeSingle
 computeSingleManual <- config$DE$computeSingleManual
@@ -115,21 +118,32 @@ if(computeBulk){
     bulk_markers <- lapply(bulk_markers, function(x) x %>% subset(logFC > 0))
     bulk_markers <- lapply(bulk_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
     bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
-    saveRDS(bulk_markers, file.path(results_folder, "bulkMarkers.rds"))
+    saveMarkers(markers = bulk_markers$`DESeq2-Wald`, 
+                algo = 'DESeq2',
+                split.by = NULL,
+                base.path = results_folder,
+                kind = 'bulk')
+    saveMarkers(markers = bulk_markers$`edgeR-QLF`, 
+                algo = 'EdgeR',
+                split.by = NULL,
+                base.path = results_folder,
+                kind = 'bulk')
     message('Done computing Bulk DE genes')
 }
-
 
 
 # ---------------------------------------------------------
 # DE bulk manual
 # ---------------------------------------------------------
 if(computeBulkManual){
-    message('Computing Bulk DE genes manually')
+    message('Computing Bulk DE genes t-test')
     manual_bulk_markers <- find_markers(bulk_filtered_data, stat.test)
-    saveRDS(manual_bulk_markers, file.path(results_folder, "bulkMarkersManual.rds"))
-    message('Done computing Bulk DE genes manually')
-    
+    saveMarkers(markers = manual_bulk_markers, 
+                algo = 't-test',
+                split.by = NULL,
+                base.path = results_folder,
+                kind = 'bulk')
+    message('Done computing Bulk DE genes t-test')
 }
 
 
@@ -174,14 +188,19 @@ if(computeSuper){
     super_markers <- superCells_DEs(sc_clustered_data, gammas, 5,
                                     weighted = F,
                                     test.use = stat.test,
-                                    method = 'bm')
+                                    bm = T,
+                                    split.by = split.by)
     
     volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
         ggtitle('Volcano plot of SuperCells at level gamma = 5') +
         theme(plot.title = element_text(hjust = 0.5))
     
     super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
-    saveRDS(super_markers, file.path(results_folder, "superMarkers.rds"))
+    saveMarkers(markers = super_markers, 
+                algo = 't-test',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'super')
     message('Done computing SuperCell DE genes')
 }
 
@@ -193,10 +212,16 @@ if(computeSuperDes){
     message('Computing SuperCell DE genes with DESeq2')
     super_markers_des <- list()
     
-    for(gamma in gammas[c(-1, -2)]){
+    for(gamma in gammas){
         message('\tGamma = ', gamma)
         # supercells creation with geometric mean as using counts here
-        super <- createSuperCellsBM(sc_filtered_data, gamma, F)
+        super <- superCellWrapper(data = sc_filtered_data, 
+                                  gamma = gamma, 
+                                  arithmetic = F,
+                                  split.by = split.by,
+                                  SC.type = 'Exact',
+                                  bm = T,
+                                  norm = F)
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
                                       colData = data.frame(design = super$cell_line), 
@@ -209,7 +234,11 @@ if(computeSuperDes){
                                                               oldNameLog = 'log2FoldChange',
                                                               oldNameP = 'padj')
     }
-    saveRDS(super_markers_des, file.path(results_folder, "superMarkersDes.rds"))
+    saveMarkers(markers = super_markers_des, 
+                algo = 'DESeq2',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'super')
     message('Done computing SuperCell DE genes with DESeq2')
 }
 
@@ -220,10 +249,17 @@ if(computeSuperDes){
 # Saves at each gamma to avoid loss of information in case of crash
 if(computeSuperEdge){
     message('Computing SuperCell DE genes with EdgeR')
-    for(gamma in gammas[c(-1, -2)]){
+    DEs <- list()
+    for(gamma in gammas){
         message('\tGamma = ', gamma)
         # supercells creation with geometric mean as using counts here
-        super <- createSuperCellsBM(sc_filtered_data, gamma, F)
+        super <- superCellWrapper(data = sc_filtered_data, 
+                                  gamma = gamma, 
+                                  arithmetic = F,
+                                  split.by = split.by,
+                                  SC.type = 'Exact',
+                                  bm = T,
+                                  norm = F)
         
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
         edge <- DGEList(counts = ge, group = super$cell_line)
@@ -233,27 +269,15 @@ if(computeSuperEdge){
         
         # Quasi likelihood test
         fit <- glmQLFit(edge, model)
-        qlf <- arrangeDE(glmQLFTest(fit, coef= 2)$table, oldNameP = 'PValue')
+        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table, 
+                                                oldNameP = 'PValue')
         
-        saveRDS(qlf, file.path(results_folder, sprintf("superMarkersEdge%s.rds", gamma)))
-        
-        # Memory space savings to avoid crash ...
-        rm('super')
-        rm('qlf')
     }
-    files <- list.files(results_folder)
-    files <- files[grep('superMarkersEdge.*.rds', files)]
-    super_markers_edge <- list()
-    for(f in files){
-        gamma <- str_split(str_split(f, 'Edge', simplify = T)[2], '.rds', simplify = T)[1]
-        if(gamma %in% gammas){
-            d <- readRDS(file.path(results_folder, f))
-            super_markers_edge[[gamma]] <- d
-        }
-    }
-    # reordering
-    idx <- sort(as.numeric(names(super_markers_edge)), index.return = T)$ix
-    saveRDS(super_markers_edge[idx], file.path(results_folder, "superMarkersEdge.rds"))
+    saveMarkers(markers = DEs, 
+                algo = 'EdgeR',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'super')
     message('Done computing SuperCell DE genes with EdgeR')
 }
 
@@ -298,14 +322,14 @@ if(computeSingleManual){
 if(computeMeta){
     # Metacell own GE matrix from pipeline, manual t-test
     message('Computing MetaCells DE genes with t-test')
-    mc <- readRDS('data/hagai_mouse_lps_data/MCdefault.rds')
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
     mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
         # create seurat object
-        ge <- mc[[mc_gamma]]
-        labels <- rep('ctrl', ncol(ge))
-        labels[grep('treat', colnames(ge))] <- 'treat'
+        ge <- mc[[mc_gamma]]$ge
+        labels <- unlist(strsplit(mc[[as.character(mc_gamma)]]$sample, '[0-9]'))
         meta <- data.frame(label = labels, row.names = colnames(ge))
         mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
         Idents(mc_data) <- 'label'
@@ -314,7 +338,11 @@ if(computeMeta){
         metacell_markers_manual <- find_markers(mc_data, stat.test, norm = F)
         DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
-    saveRDS(DEs, file.path(results_folder, "metaGEMarkersManual.rds"))
+    saveMarkers(markers = DEs, 
+                algo = 't-test',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'meta')
     message('Done computing MetaCells DE genes with t-test')
 }
 
@@ -325,18 +353,15 @@ if(computeMeta){
 if(computeMetaDes){
     # Metacell own GE matrix from pipeline, DESeq2
     message('Computing MetaCells DE genes with DESeq2')
-    GEs <- createMCGE(sc_filtered_data, results_folder)
-    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
-    mc_gammas <- names(GEs)
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
+    mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
-        ge <- GEs[[mc_gamma]]
-        membership <- metaInfo$membership[[mc_gamma]]
-        sizes <- table(membership)
-        labels <- rep('ctrl', ncol(ge))
-        labels[grep('treat', colnames(ge))] <- 'treat'
-        labels <- data.frame(label = labels, row.names = colnames(ge))
-        
+        ge <- mc[[mc_gamma]]$ge
+        sizes <- mc[[mc_gamma]]$size
+        labels <- sapply(mc[[mc_gamma]]$sample, function(x) unlist(strsplit(x, split = '[0-9]')))
+        labels <- data.frame(label = labels)
         # Run DE
         ge <- floor(sweep(ge, 2, sizes, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
@@ -350,7 +375,11 @@ if(computeMetaDes){
                                                 oldNameLog = 'log2FoldChange',
                                                               oldNameP = 'padj')
     }
-    saveRDS(DEs, file.path(results_folder, "metaGEMarkersDes.rds"))
+    saveMarkers(markers = DEs, 
+                algo = 'DESeq2',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'meta')
     message('Done computing MetaCells DE genes with DESeq2')
 }
 
@@ -361,16 +390,14 @@ if(computeMetaDes){
 if(computeMetaEdge){
     # Metacell own GE matrix from pipeline, EdgeR
     message('Computing MetaCells DE genes with EdgeR')
-    GEs <- createMCGE(sc_filtered_data, results_folder)
-    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
-    mc_gammas <- names(GEs)
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
+    mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
-        ge <- GEs[[mc_gamma]]
-        membership <- metaInfo$membership[[mc_gamma]]
-        sizes <- table(membership)
-        labels <- rep('ctrl', ncol(ge))
-        labels[grep('treat', colnames(ge))] <- 'treat'
+        ge <- mc[[mc_gamma]]$ge
+        sizes <- mc[[mc_gamma]]$size
+        labels <- sapply(mc[[mc_gamma]]$sample, function(x) unlist(strsplit(x, split = '[0-9]')))
 
         # Run DE
         ge <- floor(sweep(ge, 2, sizes, '*'))
@@ -384,7 +411,11 @@ if(computeMetaEdge){
         DEs[[as.character(mc_gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                    oldNameP = 'PValue')
     }
-    saveRDS(DEs, file.path(results_folder, "metaGEMarkersEdge.rds"))
+    saveMarkers(markers = DEs, 
+                algo = 'EdgeR',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'meta')
     message('Done computing MetaCells DE genes with EdgeR')
 }
 
@@ -393,39 +424,31 @@ if(computeMetaEdge){
 # Metacell via SuperCell t-test
 # ---------------------------------------------------------
 if(computeMetaSuper){
-    # Metacell membership fed into superCell pipeline
-    message('Computing MetaCells through SuperCell, t-test')
-    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
-    mc_gammas <- names(metaInfo$membership)
+    # Metacell own GE matrix from pipeline, manual t-test
+    message('Computing MetaCells SC-like genes with t-test')
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_SC_like.rds'))
+    mc_gammas <- names(mc)
     DEs <- list()
-    sc_filtered_data$cell_name <- colnames(sc_filtered_data)
+    data <- sc_filtered_data
     for(mc_gamma in mc_gammas){
-        sc_data <- subset(sc_filtered_data, subset = cell_name %in% names(metaInfo$membership[[mc_gamma]]))
-        super <- createSuperCells(sc_data, 
-                                  as.numeric(mc_gamma),
-                                  arithmetic = FALSE)
-        super$membership <- metaInfo$membership[[mc_gamma]]
-        tmp <- data.frame(membership = super$membership,
-                          cLine = sapply(metaInfo$annotation[[mc_gamma]], function(x) substr(x, 1, nchar(x) - 1)))
-        cell_line <- unique(tmp) %>%
-            arrange(membership)
-        rownames(cell_line) <- cell_line$membership
-        super$cell_line <- cell_line$cLine
-        super$supercell_size <- table(metaInfo$membership[[mc_gamma]])
-        super$ge <- supercell_GE(GetAssayData(sc_data), super$membership)
-        DE <- supercell_FindMarkers(ge = super$GE,
-               supercell_size = super$supercell_size,
-               clusters = super$cell_line,
-               ident.1 = 'treat',
-               ident.2 = 'ctrl',
-               logfc.threshold = 0,
-               only.pos = F,
-               do.bootstrapping = F,
-               test.use = stat.test)
-        DEs[[as.character(mc_gamma)]] <- arrangeDE(DE)
+        cells.use <- colnames(data)[colnames(data) %in% names(mc[[mc_gamma]]$membership)]
+        ge <- supercell_GE(ge = GetAssayData(data)[, cells.use],
+                     groups =  mc[[mc_gamma]]$membership[cells.use])
+        colnames(ge) <- seq_len(ncol(ge))
+        meta <- data.frame(label = mc[[mc_gamma]]$sample, row.names = colnames(ge))
+        sc <- CreateSeuratObject(counts = ge, meta.data = meta)
+        Idents(sc) <- 'label'
+        # Run DE
+        metacell_markers_manual <- find_markers(sc, stat.test)  # normalized = T
+        DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
-    saveRDS(DEs, file.path(results_folder, "metaSuperMarkers.rds"))
-    message('Done computing MetaCells through SuperCell, t-test')
+    saveMarkers(markers = DEs, 
+                algo = 't-test',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'metasc')
+    message('Done computing MetaCells SC-like genes with t-test')
 }
 
 
@@ -433,31 +456,23 @@ if(computeMetaSuper){
 # Metacell via SuperCell DESeq2
 # ---------------------------------------------------------
 if(computeMetaSuperDes){
-    # Metacell membership fed into superCell pipeline
-    message('Computing MetaCells through SuperCell, DESeq2')
-    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
-    mc_gammas <- names(metaInfo$membership)
+    # Metacell own GE matrix from pipeline, DESeq2
+    message('Computing MetaCells SC-like genes with DESeq2')
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_SC_like.rds'))
+    mc_gammas <- names(mc)
     DEs <- list()
-    sc_filtered_data$cell_name <- colnames(sc_filtered_data)
     for(mc_gamma in mc_gammas){
-        sc_data <- subset(sc_filtered_data, subset = cell_name %in% names(metaInfo$membership[[mc_gamma]]))
-        super <- createSuperCells(sc_data, 
-                                  as.numeric(mc_gamma),
-                                  arithmetic = FALSE)
-        super$membership <- metaInfo$membership[[mc_gamma]]
-        tmp <- data.frame(membership = super$membership,
-                          cLine = sapply(metaInfo$annotation[[mc_gamma]], function(x) substr(x, 1, nchar(x) - 1)))
-        cell_line <- unique(tmp) %>%
-            arrange(membership)
-        rownames(cell_line) <- cell_line$membership
-        super$cell_line <- cell_line$cLine
-        super$supercell_size <- table(metaInfo$membership[[mc_gamma]])
-        super$ge <- supercell_GE(GetAssayData(sc_data), super$membership)
-        
-        ge <- floor(sweep(super$ge, 2, super$supercell_size, '*'))
+        cells.use <- colnames(data)[colnames(data) %in% names(mc[[mc_gamma]]$membership)]
+        ge <- supercell_GE(ge = GetAssayData(data)[, cells.use],
+                           groups =  mc[[mc_gamma]]$membership[cells.use])
+        labels <- data.frame(label = mc[[mc_gamma]]$sample, 
+                             row.names = names(mc[[mc_gamma]]$sample))
+        # Run DE
+        ge <- floor(sweep(ge, 2, mc[[mc_gamma]]$size, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = cell_line, 
-                                      design = ~ membership)
+                                      colData = labels, 
+                                      design = ~ label)
         
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
         results_wald <- results(dds_wald)
@@ -466,8 +481,12 @@ if(computeMetaSuperDes){
                                                    oldNameLog = 'log2FoldChange',
                                                    oldNameP = 'padj')
     }
-    saveRDS(DEs, file.path(results_folder, "metaSuperMarkersDes.rds"))
-    message('Done computing MetaCells through SuperCell, DESeq2')
+    saveMarkers(markers = DEs, 
+                algo = 'DESeq2',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'metasc')
+    message('Done computing MetaCells SC-like genes with DESeq2')
 }
 
 
@@ -475,31 +494,23 @@ if(computeMetaSuperDes){
 # Metacell via SuperCell EdgeR
 # ---------------------------------------------------------
 if(computeMetaSuperEdge){
-    # Metacell membership fed into superCell pipeline
-    message('Computing MetaCells through SuperCell, EdgeR')
-    metaInfo <- createMCMembership(sc_filtered_data, results_folder)
-    mc_gammas <- names(metaInfo$membership)
+    # Metacell own GE matrix from pipeline, EdgeR
+    message('Computing MetaCells SC-like genes with EdgeR')
+    mc.type <- paste('mc', split.by, sep = '_')
+    mc <- readRDS(file.path(data_folder, mc.type, 'mc_SC_like.rds'))
+    mc_gammas <- names(mc)
     DEs <- list()
-    sc_filtered_data$cell_name <- colnames(sc_filtered_data)
     for(mc_gamma in mc_gammas){
-        sc_data <- subset(sc_filtered_data, subset = cell_name %in% names(metaInfo$membership[[mc_gamma]]))
-        super <- createSuperCells(sc_data, 
-                                  as.numeric(mc_gamma),
-                                  arithmetic = FALSE)
-        super$membership <- metaInfo$membership[[mc_gamma]]
-        tmp <- data.frame(membership = super$membership,
-                          cLine = sapply(metaInfo$annotation[[mc_gamma]], function(x) substr(x, 1, nchar(x) - 1)))
-        cell_line <- unique(tmp) %>%
-            arrange(membership)
-        rownames(cell_line) <- cell_line$membership
-        super$cell_line <- cell_line$cLine
-        super$supercell_size <- table(metaInfo$membership[[mc_gamma]])
-        super$ge <- supercell_GE(GetAssayData(sc_data), super$membership)
+        cells.use <- colnames(data)[colnames(data) %in% names(mc[[mc_gamma]]$membership)]
+        ge <- supercell_GE(ge = GetAssayData(data)[, cells.use],
+                           groups =  mc[[mc_gamma]]$membership[cells.use])
+        labels <- mc[[mc_gamma]]$sample
         
-        ge <- floor(sweep(super$ge, 2, super$supercell_size, '*'))
-        edge <- DGEList(counts = ge, group = super$cell_line)
+        # Run DE
+        ge <- floor(sweep(ge, 2, mc[[mc_gamma]]$size, '*'))
+        edge <- DGEList(counts = ge, group = labels)
         edge <- calcNormFactors(edge)
-        model <- model.matrix(~super$cell_line)
+        model <- model.matrix(~labels)
         edge <- estimateDisp(edge, model)
         
         # Quasi likelihood test
@@ -507,8 +518,12 @@ if(computeMetaSuperEdge){
         DEs[[as.character(mc_gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                    oldNameP = 'PValue')
     }
-    saveRDS(DEs, file.path(results_folder, "metaSuperMarkersEdge.rds"))
-    message('Done computing MetaCells through SuperCell, EdgeR')
+    saveMarkers(markers = DEs, 
+                algo = 'EdgeR',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'metasc')
+    message('Done computing MetaCells SC-like genes with EdgeR')
 }
 
 
@@ -517,29 +532,16 @@ if(computeMetaSuperEdge){
 # ---------------------------------------------------------
 if(computeRandomGroup){
     message('Computing Random grouping t-test')
-    data = sc_filtered_data
+    data = sc_clustered_data
     DEs <- list()
-    for(gamma in gammas[c(-1, -2)]){
-        SC.list <- compute_supercells(
-            sc = data,
-            ToComputeSC = T,
-            data.folder = 'data/',
-            filename = paste0('superCells', gamma),
-            gamma.seq = c(gamma),
-            n.var.genes = 1000,
-            k.knn = 5,
-            n.pc = 10,
-            approx.N = 1000,
-            fast.pca = TRUE,
-            genes.use = NULL, 
-            genes.exclude = NULL,
-            seed.seq = c(0)
-        )
-        super <- SC.list$Random[[as.character(gamma)]][[1]]
-        super$cell_line <- supercell_assign(clusters = Idents(data),
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+    for(gamma in gammas){
+        super <- superCellWrapper(data = data, 
+                                  gamma = gamma, 
+                                  arithmetic = T,
+                                  split.by = split.by,
+                                  SC.type = 'Random',
+                                  bm = T)
+
         rdm_markers <- supercell_FindMarkers(ge = super$GE,
                                        supercell_size = super$supercell_size,
                                        clusters = super$cell_line,
@@ -550,9 +552,13 @@ if(computeRandomGroup){
                                        do.bootstrapping = F,
                                        test.use = stat.test)
         
-        DEs[[as.character(gamma)]] <- rdm_markers
+        DEs[[as.character(gamma)]] <- arrangeDE(rdm_markers)
     }
-    saveRDS(DEs, file.path(results_folder, 'randomGrouping.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 't-test',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'random')
     message('Done computing Random grouping t-test')
 }
 
@@ -565,27 +571,14 @@ if(computeRandomGroupDes){
     message('Computing Random grouping DESeq2')
     DEs <- list()
     data = sc_filtered_data
-    for(gamma in gammas[c(-1, -2)]){
-        SC.list <- compute_supercells(
-            sc = data,
-            ToComputeSC = T,
-            data.folder = 'data/',
-            filename = paste0('superCells', gamma),
-            gamma.seq = c(gamma),
-            n.var.genes = 1000,
-            k.knn = 5,
-            n.pc = 10,
-            approx.N = 1000,
-            fast.pca = TRUE,
-            genes.use = NULL, 
-            genes.exclude = NULL,
-            seed.seq = c(0)
-        )
-        super <- SC.list$Random[[as.character(gamma)]][[1]]
-        super$cell_line <- supercell_assign(clusters = Idents(data),
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+    for(gamma in gammas){
+        super <- superCellWrapper(data = data, 
+                                  gamma = gamma, 
+                                  arithmetic = F,
+                                  split.by = split.by,
+                                  SC.type = 'Random',
+                                  bm = T,
+                                  norm = F)
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
         dds <- DESeqDataSetFromMatrix(ge,
                                       colData = data.frame(design = super$cell_line), 
@@ -598,7 +591,11 @@ if(computeRandomGroupDes){
                                                    oldNameLog = 'log2FoldChange',
                                                    oldNameP = 'padj')
     }
-    saveRDS(DEs, file.path(results_folder, 'randomGroupingDes.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 'DESeq2',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'random')
     message('Done computing Random grouping DESeq2')
 }
 
@@ -609,30 +606,17 @@ if(computeRandomGroupDes){
 # ---------------------------------------------------------
 if(computeRandomGroupEdge){
     memory.limit(size=56000)
-    message('Computing Random grouping DESeq2')
+    message('Computing Random grouping EdgeR')
     DEs <- list()
     data = sc_filtered_data
-    for(gamma in gammas[c(-1, -2)]){
-        SC.list <- compute_supercells(
-            sc = data,
-            ToComputeSC = T,
-            data.folder = 'data/',
-            filename = paste0('superCells', gamma),
-            gamma.seq = c(gamma),
-            n.var.genes = 1000,
-            k.knn = 5,
-            n.pc = 10,
-            approx.N = 1000,
-            fast.pca = TRUE,
-            genes.use = NULL, 
-            genes.exclude = NULL,
-            seed.seq = c(0)
-        )
-        super <- SC.list$Random[[as.character(gamma)]][[1]]
-        super$cell_line <- supercell_assign(clusters = Idents(data),
-                                            supercell_membership = super$membership,
-                                            method = "jaccard")
-        super$GE <- supercell_GE(GetAssayData(data), super$membership)
+    for(gamma in gammas){
+        super <- superCellWrapper(data = data, 
+                                  gamma = gamma, 
+                                  arithmetic = F,
+                                  split.by = split.by,
+                                  SC.type = 'Random',
+                                  bm = T,
+                                  norm = F)
         ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
 
         edge <- DGEList(counts = ge, group = super$cell_line)
@@ -645,7 +629,11 @@ if(computeRandomGroupEdge){
         DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                    oldNameP = 'PValue')
     }
-    saveRDS(DEs, file.path(results_folder, 'randomGroupingEdge.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 'EdgeR',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'random')
     message('Done computing Random grouping EdgeR')
 }
 
@@ -657,7 +645,7 @@ if(computeSubSampling){
     message('Computing Subsampling t-test')
     data = sc_filtered_data
     DEs <- list()
-    for(gamma in gammas[c(-1, -2)]){
+    for(gamma in gammas){
         SC.list <- compute_supercells(
             sc = data,
             ToComputeSC = T,
@@ -680,7 +668,11 @@ if(computeSubSampling){
         sub_markers <- find_markers(keep.data, stat.test)
         DEs[[as.character(gamma)]] <- sub_markers
     }
-    saveRDS(DEs, file.path(results_folder, 'subSampling.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 't-test',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'subsampling')
     message('Done computing Subsampling t-test')
 }
 
@@ -692,7 +684,7 @@ if(computeSubSamplingDes){
     message('Computing Subsampling DESeq2')
     data = sc_filtered_data
     DEs <- list()
-    for(gamma in gammas[c(-1, -2)]){
+    for(gamma in gammas){
         SC.list <- compute_supercells(
             sc = data,
             ToComputeSC = T,
@@ -722,7 +714,11 @@ if(computeSubSamplingDes){
                                                    oldNameLog = 'log2FoldChange',
                                                    oldNameP = 'padj')
     }
-    saveRDS(DEs, file.path(results_folder, 'subSamplingDes.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 'DESeq2',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'subsampling')
     message('Done computing Subsampling DESeq2')
 }
 
@@ -733,7 +729,7 @@ if(computeSubSamplingEdge){
     message('Computing Subsampling EdgeR')
     data = sc_filtered_data
     DEs <- list()
-    for(gamma in gammas[c(-1, -2)]){
+    for(gamma in gammas){
         SC.list <- compute_supercells(
             sc = data,
             ToComputeSC = T,
@@ -764,6 +760,10 @@ if(computeSubSamplingEdge){
         DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
                                                 oldNameP = 'PValue')
     }
-    saveRDS(DEs, file.path(results_folder, 'subSamplingEdge.rds'))
+    saveMarkers(markers = DEs, 
+                algo = 'EdgeR',
+                split.by = split.by,
+                base.path = results_folder,
+                kind = 'subsampling')
     message('Done computing Subsampling EdgeR')
 }

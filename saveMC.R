@@ -1,14 +1,17 @@
 library(metacell)
-library(Seurat)
+library(config)
 
-find_common_genes <- function(files, mc_folder, samples, type = 'Metacell_default'){
-  genes.per.gamma <- sapply(seq_along(files), function(x) list())
-  for(samp in samples){
-    id <- grep(samp, files)
-    data <- readRDS(file.path(mc_folder, files[id]))[[type]]
+find_common_genes <- function(files, mc_folder, samples, mc.type){
+  genes.per.gamma <- list()
+  for(file in files){
+    data <- readRDS(file.path(mc_folder, file))[[mc.type]]
     gammas <- as.numeric(names(data))
+    if(length(genes.per.gamma) == 0){
+      genes.per.gamma <- sapply(seq_along(gammas), function(x) list())
+    }
     for(i in seq_along(gammas)){
-      ge <- data[[i]][[1]]$mc_info$mc@mc_fp
+        ge <- data[[i]][[1]]$mc_info$mc@mc_fp
+
       
       #find intersection of all genes
       if(length(genes.per.gamma[[i]]) == 0){
@@ -22,13 +25,14 @@ find_common_genes <- function(files, mc_folder, samples, type = 'Metacell_defaul
   return(genes.per.gamma)
 }
 
-create_metacell <- function(genes, samples, files, mc_folder, type){
+
+create_metacell <- function(genes, samples, files, mc_folder, mc.type){
   MC.default <- sapply(seq_len(20), function(x) list())
   
   # Rearrange data
   for(samp in samples){
     id <- grep(samp, files)
-    data <- readRDS(file.path(mc_folder, files[id]))[[type]]
+    data <- readRDS(file.path(mc_folder, files[id]))[[mc.type]]
     gammas <- as.numeric(names(data))
     for(i in seq_along(gammas)){
       keep.genes <- genes[[i]]
@@ -37,6 +41,7 @@ create_metacell <- function(genes, samples, files, mc_folder, type){
         MC.default[[i]]$ge <- ge
         MC.default[[i]]$sample <- rep(samp, ncol(ge))
         MC.default[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
+        MC.default[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
       }else{
         MC.default[[i]]$ge <- cbind(MC.default[[i]]$ge,
                                     ge)
@@ -45,6 +50,8 @@ create_metacell <- function(genes, samples, files, mc_folder, type){
         MC.default[[i]]$size <- c(MC.default[[i]]$size, 
                                   table(data[[i]][[1]]$mc_info$mc@mc))
         names(MC.default[[i]]$size) <- seq_along(MC.default[[i]]$size)
+        MC.default[[i]]$membership <- c(MC.default[[i]]$membership,
+                                        data[[i]][[1]]$mc_info$mc@mc + max(MC.default[[i]]$membership))
       }
     }
   }
@@ -56,29 +63,36 @@ create_metacell <- function(genes, samples, files, mc_folder, type){
     new.colnames <- paste(MC.default[[i]]$sample, seq_len(ncol(ge)), sep = '_')
     colnames(MC.default[[i]]$ge) <- new.colnames
     MC.default[[i]]$gamma <- round(N.sc / ncol(ge))
+    print(MC.default[[i]]$gamma)
+    print(round(N.sc / max(MC.default[[i]]$membership)))
   }
   
   names(MC.default) <- sapply(MC.default, function(x) x$gamma)
   return(MC.default)
 }
 
-
-
-mc_folder <- 'data/mc/raw'
+# ------------------------------------------------------------------------------
+# ----------------------     MAIN    -------------------------------------------
+# ------------------------------------------------------------------------------
+mc.type <- 'Metacell_default'
+config <- config::get(file = 'configs/hagai_mouse_lps_config.yml')
+sample_vs_condition <- paste('mc', config$splitBy, sep = '_')
+mc_folder <- file.path('data', config$intermediaryDataFile, sample_vs_condition)
 files <- list.files(mc_folder)
-samples <- sapply(list.files(mc_folder), function(x) strsplit(x, '_')[[1]][1])
-sc_data <- readRDS('data/hagai_mouse_lps_data/singleCellFiltered.rds')
-N.sc <- ncol(sc_data)
+files.used <- files[grep('MC', files)]
+samples_condition <- sapply(files.used, function(x) strsplit(x, '_')[[1]][1])
+#sc_data <- readRDS('data/hagai_mouse_lps_data/singleCellFiltered.rds')
+N.sc <- 16882  # TODO: change this
 
 # Default
-genes <- find_common_genes(files = files,
+genes <- find_common_genes(files = files.used,
                   mc_folder = mc_folder,
-                  samples = samples,
-                  type = "Metacell_default")
+                  samples = samples_condition,
+                  mc.type = mc.type)
 
 MC.default <- create_metacell(genes = genes,
-                              samples = samples,
-                              files = files,
+                              samples = samples_condition,
+                              files = files.used,
                               mc_folder = mc_folder,
-                              type = "Metacell_default")
-saveRDS(MC.default, 'data/mc/mc_default.rds')
+                              mc.type = mc.type)
+saveRDS(MC.default, file.path(mc_folder, mc.type))

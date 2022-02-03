@@ -111,15 +111,17 @@ su_mc <- list('super_t' = super_markers,
               'metasc_t' = mc_sc_markers, 
               'random_t' = random_markers,
               'sub_t' = sub_sampling)
-
+bis <- readRDS(file = 'data/markers_label/meta_t.rds')
+su_mc <- list('meta_t' = mc_markers,
+              'meta_t2' = bis)
 comp <- list('Bulk (t-test)' = bulk_markers)
 for(score.type in c('auc', 'tpr', 'match')){
     plot_results_flex(su_mc, comp, score.type = score.type)
 }
 
 su_mc <- list('super_des' = super_markers_des,
-              'mc_des' = mc_markers_des,
-              'mc_sc_des' = mc_sc_markers_des, 
+              'meta_des' = mc_markers_des,
+              'metasc_des' = mc_sc_markers_des, 
               'random_des' = random_markers_des,
               'sub_des' = sub_sampling_des)
 

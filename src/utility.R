@@ -416,40 +416,13 @@ createMCMembership <- function(sc_data, results_folder){
 
 # Arrange DE tables by creating a gene columns, arranging in decreasing order
 # according to p values and logFC, renaming columns and subseting
-arrangeDE <- function(DE, oldNameLog = NULL, oldNameP = NULL, subset_logFC = T){
+arrangeDE <- function(DE, oldNameLog = NULL, oldNameP = NULL, subset_logFC = F){
         DE <- DE %>%
             data.frame() %>%
             dplyr::rename(logFC = oldNameLog, adj.p.value = oldNameP) %>% 
             mutate(gene = row.names(.)) %>%
             arrange(adj.p.value, 1/(abs(logFC) + 1))
-    if(subset_logFC){
-        subset(DE, logFC > 0)
-    }else{
-        DE
-    }
-}
-
-
-# Create random groups between cells and compute their mean or sum
-randomGrouping <- function(data, gamma, operation = 'mean'){
-    availableCols <- seq(1:ncol(data))
-    grps <- list()
-    grpNum <- 1
-    if(operation == 'mean'){
-        opFunc <- rowMeans
-    }else{
-        opFunc <- rowSums
-    }
-    while(length(availableCols) > gamma){
-        subSample <- sample(availableCols, gamma)
-        availableCols <- setdiff(availableCols, subSample)
-        grps[[grpNum]] <- opFunc(as.matrix(data[, subSample]))
-        grpNum <- grpNum + 1
-    }
-    grps[[grpNum]] <- opFunc(as.matrix(data[, availableCols]))
-    res <- data.frame(grps)
-    colnames(res) <- seq(1:grpNum)
-    return(res)
+        return(DE)
 }
 
 
@@ -459,6 +432,8 @@ saveMarkers <- function(markers,
                         split.by,
                         base.path,
                         kind){
+    markers.types <- c('super', 'subsampling', 'random', 'bulk', 
+                       'meta', 'metasc', 'pseudo', 'single')
     if((!algo %in% c('DESeq2', 'EdgeR', 't-test')) | 
        (!kind %in% c('super', 'subsampling', 'random', 'bulk', 'meta', 'metasc'))){
         stop('Could not save markers')
@@ -476,4 +451,12 @@ saveMarkers <- function(markers,
         dir.create(full.dir, recursive = T)
     }
     saveRDS(markers, file.path(full.dir, filename))
+}
+
+
+# Check if all rows contain at least one zero
+# Used for DESeq2 as algorithm does not work if all rows contains some zeros
+check_one_zero <- function(ge){
+    row_contains_zero <- apply(ge, 1, function(row) sum(row == 0) == 0)
+    return(sum(row_contains_zero) > 0)
 }

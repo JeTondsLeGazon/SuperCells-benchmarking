@@ -40,7 +40,7 @@ library(SuperCellBM)
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
-
+source('src/DEbulk.R')
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -52,39 +52,23 @@ data_folder <- file.path("data", config$intermediaryDataFile)
 results_folder <- file.path("data", config$resultsFile)
 dir.create(results_folder, showWarnings = F, recursive = T)
 
-stat.test <- config$statTest
-
 # Split either by condition or sample
 split.by <- config$splitBy
 
-# Should we compute these DE ?
+# Algorithms to run
+algos <- config$algos
+
+# Which DE we should compute
 computeSingle <- config$DE$computeSingle
-computeSingleManual <- config$DE$computeSingleManual
 computePseudo <- config$DE$computePseudo
-computePseudoManual <- config$DE$computePseudoManual
 computeBulk <- config$DE$computeBulk
-computeBulkManual <- config$DE$computeBulkManual
-
 computeSuper <- config$DE$computeSuper
-computeSuperDes <- config$DE$computeSuperDes
-computeSuperEdge <- config$DE$computeSuperEdge
-
 computeMeta <- config$DE$computeMeta
-computeMetaDes <- config$DE$computeMetaDes
-computeMetaEdge <- config$DE$computeMetaEdge
-
-computeMetaSuper <- config$DE$computeMetaSuper
-computeMetaSuperDes <- config$DE$computeMetaSuperDes
-computeMetaSuperEdge <- config$DE$computeMetaSuperEdge
-
-computeRandomGroup <- config$DE$computeRandomGroup
-computeRandomGroupDes <- config$DE$computeRandomGroupDes
-computeRandomGroupEdge <- config$DE$computeRandomGroupEdge
-
+computeMetaSC <- config$DE$computeMetaSC
+computeRandom <- config$DE$computeRandom
 computeSubSampling <- config$DE$computeSubSampling
-computeSubSamplingDes <- config$DE$computeSubSamplingDes
-computeSubSamplingEdge <- config$DE$computeSubSamplingEdge
 
+# Gammas for supercells
 gammas <- config$gammas
 
 set.seed(0)
@@ -99,10 +83,8 @@ if(!dir.exists(data_folder)){
 
 sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
 sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
-pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulk.rds"))
-pseudobulk_norm <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
-bulk_filtered_data <- readRDS(file = file.path(data_folder, "bulkFiltered.rds"))
-bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
+bulk_data <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
 
 # ---------------------------------------------------------
@@ -110,72 +92,36 @@ bdata <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 # ---------------------------------------------------------
 if(computeBulk){
     message('Computing Bulk DE genes')
-    bulk_markers <- compute_DE_bulk(bulk_filtered_data)
-    volcano_plot(bulk_markers$`edgeR-QLF`) +
-        ggtitle('Volcano plot of bulk data from DESeq2 (wald)') +
-        theme(plot.title = element_text(hjust = 0.5))
-    
-    bulk_markers <- lapply(bulk_markers, function(x) x %>% subset(logFC > 0))
-    bulk_markers <- lapply(bulk_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
-    bulk_markers <- bulk_markers[!unlist(lapply(bulk_markers, is.null))]
-    saveMarkers(markers = bulk_markers$`DESeq2-Wald`, 
-                algo = 'DESeq2',
-                split.by = NULL,
-                base.path = results_folder,
-                kind = 'bulk')
-    saveMarkers(markers = bulk_markers$`edgeR-QLF`, 
-                algo = 'EdgeR',
-                split.by = NULL,
-                base.path = results_folder,
-                kind = 'bulk')
+    for(algo in algos){
+        DE <- compute_DE_bulk(data = bulk_data, 
+                        labels = bulk_data$label,
+                        algo = algo)
+        saveMarkers(markers = DE, 
+                    algo = algo,
+                    split.by = NULL,
+                    base.path = results_folder,
+                    kind = 'bulk')
+    }
     message('Done computing Bulk DE genes')
 }
 
 
 # ---------------------------------------------------------
-# DE bulk manual
-# ---------------------------------------------------------
-if(computeBulkManual){
-    message('Computing Bulk DE genes t-test')
-    manual_bulk_markers <- find_markers(bulk_filtered_data, stat.test)
-    saveMarkers(markers = manual_bulk_markers, 
-                algo = 't-test',
-                split.by = NULL,
-                base.path = results_folder,
-                kind = 'bulk')
-    message('Done computing Bulk DE genes t-test')
-}
-
-
-# ---------------------------------------------------------
-# DE pseudobulk DESeq2
+# DE pseudobulk
 # ---------------------------------------------------------
 if(computePseudo){
     message('Computing Pseudo-bulk DE genes')
-    pseudo_markers <- compute_DE_bulk(pseudobulk_data)
-    volcano_plot(pseudo_markers$`edgeR-QLF`) +
-        ggtitle('Volcano plot of pseudo bulk data from DESeq2 (wald)') +
-        theme(plot.title = element_text(hjust = 0.5))
-    
-    pseudo_markers <- lapply(pseudo_markers, function(x) subset(x, logFC > 0))
-    pseudo_markers <- lapply(pseudo_markers, function(x) if(nrow(x) == 0){x <- NULL}else{x})
-    pseudo_markers <- pseudo_markers[!unlist(lapply(pseudo_markers, is.null))]
-    saveRDS(pseudo_markers, file.path(results_folder, "pseudoMarkers.rds"))
+    for(algo in algos){
+        DE <- compute_DE_bulk(data = pseudobulk_data, 
+                              labels = pseudobulk_data$label,
+                              algo = algo)
+        saveMarkers(markers = DE, 
+                    algo = algo,
+                    split.by = NULL,
+                    base.path = results_folder,
+                    kind = 'pseudo')
+    }
     message('Done computing Pseudo-bulk DE genes')
-}
-
-
-# ---------------------------------------------------------
-# DE pseudobulk manual
-# ---------------------------------------------------------
-if(computePseudoManual){
-    message('Computing Pseudo-bulk DE genes manually')
-    pseudo_markers_manual <- find_markers(pseudobulk_norm, stat.test) %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1)) %>%
-        mutate(gene = row.names(.)) %>%
-        subset(logFC > 0)
-    saveRDS(pseudo_markers_manual, file.path(results_folder, "pseudoMarkersManual.rds"))
-    message('Done computing Pseudo-bulk DE genes manually')
 }
 
 
@@ -328,14 +274,15 @@ if(computeMeta){
     DEs <- list()
     for(mc_gamma in mc_gammas){
         # create seurat object
-        ge <- mc[[mc_gamma]]$ge
+        ge <- mc[[mc_gamma]]$e_gc
+        colnames(ge) <- seq_along(colnames(ge))
         labels <- unlist(strsplit(mc[[as.character(mc_gamma)]]$sample, '[0-9]'))
         meta <- data.frame(label = labels, row.names = colnames(ge))
         mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
         Idents(mc_data) <- 'label'
         
         # Run DE
-        metacell_markers_manual <- find_markers(mc_data, stat.test, norm = F)
+        metacell_markers_manual <- find_markers(mc_data, stat.test, norm = T)
         DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
     }
     saveMarkers(markers = DEs, 
@@ -358,16 +305,18 @@ if(computeMetaDes){
     mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
-        ge <- mc[[mc_gamma]]$ge
+        ge <- mc[[mc_gamma]]$e_gc
         sizes <- mc[[mc_gamma]]$size
         labels <- sapply(mc[[mc_gamma]]$sample, function(x) unlist(strsplit(x, split = '[0-9]')))
         labels <- data.frame(label = labels)
         # Run DE
         ge <- floor(sweep(ge, 2, sizes, '*'))
+        if(!check_one_zero(ge)){  # mandatory for DESeq2 to work
+            ge <-  ge + 1
+        }
         dds <- DESeqDataSetFromMatrix(ge,
                                       colData = labels, 
                                       design = ~ label)
-        
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
         results_wald <- results(dds_wald)
         
@@ -378,10 +327,11 @@ if(computeMetaDes){
     saveMarkers(markers = DEs, 
                 algo = 'DESeq2',
                 split.by = split.by,
-                base.path = results_folder,
+                base.path = 'data',
                 kind = 'meta')
     message('Done computing MetaCells DE genes with DESeq2')
 }
+
 
 
 # ---------------------------------------------------------

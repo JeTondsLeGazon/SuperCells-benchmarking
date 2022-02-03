@@ -27,9 +27,6 @@ default:
       ctrl: 'unst'
       treat: 'lps4'
     
-    # statistical test to use among 't' and 'wilcox'
-    statTest: 't'
-    
     # all filtering parameters found after QC:
     filteringParam:
         doubletMaxPercentile: 0.95
@@ -48,26 +45,22 @@ default:
     centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
     computeCluster: FALSE
     
+    # Should we split supercells by samples or condition(label)?
+    splitBy: 'label' 
+    
     # graining levels of the supercells
     gammas: !expr c(1, 2, 5, 10, 50, 100)
     
+    # algorithms to use for the DE analysis
+    algos: !expr c('t-test', 'DESeq2', 'EdgeR')
+    
     # Which DEs should be (re)computed
     DE:
-        computeSingle: T
-        computeSuper: T
-        computeSingleManual: T
-        computeSuperDes: T
-        computeSuperEdge: T
-        computePseudo: T
-        computePseudoManual: T
-        computeBulk: T
-        computeBulkManual: T
-        computeMeta: T
-        computeMetaDes: T
-        computeMetaEdge: T
-        computeMetaSuper: T
-        computeMetaSuperDes: T
-        computeMetaSuperEdge: T
-        computeRandomGroup: T
-        computeRandomGroupDes: T
-        computeRandomGroupEdge: T
+        computeSingle: F
+        computeSuper: F
+        computePseudo: F
+        computeBulk: F
+        computeMeta: F
+        computeMetaSC: F
+        computeRandom: F
+        computeSubSampling: F

@@ -61,8 +61,6 @@ compute_DE_bulk <- function(data, meta){
     
     return(list('DESeq2-Wald' = results_wald,
                 'edgeR-QLF' = qlf))
-    
-
 }
 
 
@@ -144,48 +142,29 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 }
 
 
-# Computation of logFC and p-values for passed data with seurat or hyp test
-# 
-find_markers <- function(data, stat.test, seurat = F, norm = T){
+# Computation of logFC and p-values for ge matrix (already normalized)
+# Uses t-test as statistical test
+find_markers <- function(ge, labels){
     
-    if(norm){
-        data <- NormalizeData(data)
-    }
+    message(sprintf('Computing t-test on matrix of dimension %s', dim(ge)))
+    treat_grp <- grep('treat', labels)
+    ctrl_grp <- grep('ctrl', labels)
     
-    treat_grp <- grep('treat', Idents(data))
-    ctrl_grp <- grep('ctrl', Idents(data))
-    
-    if(seurat){
-        DE <- FindMarkers(data,
-                    ident.1 = treat_grp,
-                    ident.2 = ctrl_grp,
-                    only.pos = F, 
-                    logfc.threshold = 0, 
-                    test.use = stat.test)
-        return(arrangeDE(DE,
-                       oldNameLog = 'avg_log2FC',
-                       oldNameP = 'p_val_adj'))
-    }
-    #Log FC computation
-    tmp <- expm1(GetAssayData(data)) %>% data.frame()
+   
+    #Log FC computation, computed on normalized counts instead of ge matrix
+    tmp <- expm1(ge) %>% 
+        data.frame()
     grp1 <- rowMeans(tmp[, treat_grp])
     grp2 <- rowMeans(tmp[, ctrl_grp])
     logFCs <- log1p(grp1) - log1p(grp2)  # must do like this otherwise may / 0
     
-    # t-test
-    if(stat.test == 'wilcox'){
-        hyp.test <- wilcox.test
-    }else{
-        hyp.test <- t.test
-    }
-    ge <- GetAssayData(data)
-    pvals <- apply(ge, 1, function(x) hyp.test(x[treat_grp], x[ctrl_grp])$p.value)
+    pvals <- apply(ge, 1, function(x) t.test(x[treat_grp], x[ctrl_grp])$p.value)
     padj <- p.adjust(pvals, 'BH', nrow(ge))
-    r <- data.frame(row.names = rownames(data),
+    DE <- data.frame(row.names = rownames(data),
                     p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)
-    return(arrangeDE(r))
+    return(arrangeDE(DE))
 }
 
 
@@ -235,7 +214,12 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
         }else if(grepl('meta', names(super_mc)[i])){
             tag <- 'MetaCells'
             chr.used <- c(chr.used, 4)
-            colors.used <- c(colors.used, 'darkgreen')
+            if(grepl('2', names(super_mc)[i])){
+                colors.used <- c(colors.used, 'darkgreen')
+            }else{
+                colors.used <- c(colors.used, 'blue')
+                
+            }
         }else if(grepl('super', names(super_mc)[i])){
             tag <- 'SuperCells'
             chr.used <- c(chr.used, 1)
@@ -251,7 +235,7 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
         }
         if(grepl('t$', names(super_mc[i]))){
             testTag <- 't-test'
-        }else if(grepl('t', names(super_mc[i]))){
+        }else if(grepl('twt', names(super_mc[i]))){
             testTag <- 'weighted t-test'
         }else if(grepl('[Dd][Ee][Ss]', names(super_mc[i]))){
             testTag <- 'DESeq2'
@@ -271,7 +255,7 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
     }else if(score.type == 'tpr'){
         title <- sprintf('True positive rate of DE genes against Ground truth(Bulk)', tag)
     }
-    if(score.type == 'tpr'){
+    if(score.type == 'tpr' | score.type == 'auc'){
         legend.pos <- 'bottomleft'
     }else{
         legend.pos <- 'topright'

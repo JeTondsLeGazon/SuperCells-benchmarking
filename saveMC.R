@@ -1,14 +1,17 @@
 library(metacell)
-library(Seurat)
+library(config)
 
-find_common_genes <- function(files, mc_folder, samples, type = 'Metacell_default'){
-  genes.per.gamma <- sapply(seq_along(files), function(x) list())
-  for(samp in samples){
-    id <- grep(samp, files)
-    data <- readRDS(file.path(mc_folder, files[id]))[[type]]
+find_common_genes <- function(files, mc_folder, samples, mc.type){
+  genes.per.gamma <- list()
+  for(file in files){
+    data <- readRDS(file.path(mc_folder, file))[[mc.type]]
     gammas <- as.numeric(names(data))
+    if(length(genes.per.gamma) == 0){
+      genes.per.gamma <- sapply(seq_along(gammas), function(x) list())
+    }
     for(i in seq_along(gammas)){
-      ge <- data[[i]][[1]]$mc_info$mc@mc_fp
+        ge <- data[[i]][[1]]$mc_info$mc@mc_fp
+
       
       #find intersection of all genes
       if(length(genes.per.gamma[[i]]) == 0){
@@ -22,63 +25,81 @@ find_common_genes <- function(files, mc_folder, samples, type = 'Metacell_defaul
   return(genes.per.gamma)
 }
 
-create_metacell <- function(genes, samples, files, mc_folder, type){
-  MC.default <- sapply(seq_len(20), function(x) list())
+
+create_metacell <- function(genes, samples, files, mc_folder, mc.type){
+  MC <- sapply(seq_len(20), function(x) list())
   
   # Rearrange data
   for(samp in samples){
     id <- grep(samp, files)
-    data <- readRDS(file.path(mc_folder, files[id]))[[type]]
+    data <- readRDS(file.path(mc_folder, files[id]))[[mc.type]]
     gammas <- as.numeric(names(data))
     for(i in seq_along(gammas)){
       keep.genes <- genes[[i]]
       ge <- data[[i]][[1]]$mc_info$mc@mc_fp[keep.genes, ]
-      if(length(MC.default[[i]]) ==  0){
-        MC.default[[i]]$ge <- ge
-        MC.default[[i]]$sample <- rep(samp, ncol(ge))
-        MC.default[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
+      e_gc <- data[[i]][[1]]$mc_info$mc@e_gc[keep.genes, ]
+      if(length(MC[[i]]) ==  0){
+        MC[[i]]$ge <- ge
+        MC[[i]]$sample <- rep(samp, ncol(ge))
+        MC[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
+        MC[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
+        MC[[i]]$e_gc <- e_gc
       }else{
-        MC.default[[i]]$ge <- cbind(MC.default[[i]]$ge,
+        MC[[i]]$ge <- cbind(MC[[i]]$ge,
                                     ge)
-        MC.default[[i]]$sample <- c(MC.default[[i]]$sample,
+        MC[[i]]$sample <- c(MC[[i]]$sample,
                                     rep(samp, ncol(ge)))
-        MC.default[[i]]$size <- c(MC.default[[i]]$size, 
+        MC[[i]]$size <- c(MC[[i]]$size, 
                                   table(data[[i]][[1]]$mc_info$mc@mc))
-        names(MC.default[[i]]$size) <- seq_along(MC.default[[i]]$size)
+        names(MC[[i]]$size) <- seq_along(MC[[i]]$size)
+        MC[[i]]$membership <- c(MC[[i]]$membership,
+                                        data[[i]][[1]]$mc_info$mc@mc + max(MC[[i]]$membership))
+        MC[[i]]$e_gc <- cbind(MC[[i]]$e_gc,
+                              e_gc)
       }
     }
   }
-  MC.default <- MC.default[sapply(MC.default, function(x) length(x) > 0)]
+  MC <- MC[sapply(MC, function(x) length(x) > 0)]
   
   # Rename with gammas
-  for(i in seq_along(MC.default)){
-    ge <- MC.default[[i]]$ge
-    new.colnames <- paste(MC.default[[i]]$sample, seq_len(ncol(ge)), sep = '_')
-    colnames(MC.default[[i]]$ge) <- new.colnames
-    MC.default[[i]]$gamma <- round(N.sc / ncol(ge))
+  for(i in seq_along(MC)){
+    ge <- MC[[i]]$ge
+    new.colnames <- paste(MC[[i]]$sample, seq_len(ncol(ge)), sep = '_')
+    colnames(MC[[i]]$ge) <- new.colnames
+    MC[[i]]$gamma <- round(N.sc / ncol(ge))
   }
   
-  names(MC.default) <- sapply(MC.default, function(x) x$gamma)
-  return(MC.default)
+  names(MC) <- sapply(MC, function(x) x$gamma)
+  return(MC)
 }
 
-
-
-mc_folder <- 'data/mc/raw'
+# ------------------------------------------------------------------------------
+# ----------------------     MAIN    -------------------------------------------
+# ------------------------------------------------------------------------------
+mc.type <- 'Metacell_default'
+config <- config::get(file = 'configs/hagai_mouse_lps_config.yml')
+sample_vs_condition <- paste('mc', config$splitBy, sep = '_')
+mc_folder <- file.path('data', config$intermediaryDataFile, sample_vs_condition)
 files <- list.files(mc_folder)
-samples <- sapply(list.files(mc_folder), function(x) strsplit(x, '_')[[1]][1])
-sc_data <- readRDS('data/hagai_mouse_lps_data/singleCellFiltered.rds')
-N.sc <- ncol(sc_data)
+files.used <- files[grep('MC', files)]
+samples_condition <- sapply(files.used, function(x) strsplit(x, '_')[[1]][1])
+#sc_data <- readRDS('data/hagai_mouse_lps_data/singleCellFiltered.rds')
+N.sc <- 16882  # TODO: change this
 
 # Default
-genes <- find_common_genes(files = files,
+genes <- find_common_genes(files = files.used,
                   mc_folder = mc_folder,
-                  samples = samples,
-                  type = "Metacell_default")
+                  samples = samples_condition,
+                  mc.type = mc.type)
 
-MC.default <- create_metacell(genes = genes,
-                              samples = samples,
-                              files = files,
+MC <- create_metacell(genes = genes,
+                              samples = samples_condition,
+                              files = files.used,
                               mc_folder = mc_folder,
-                              type = "Metacell_default")
-saveRDS(MC.default, 'data/mc/mc_default.rds')
+                              mc.type = mc.type)
+if(mc.type == 'Metacell_default'){
+  filename <- 'mc_default.rds'
+}else{
+  filename <- 'mc_SC_like.rds'
+}
+saveRDS(MC, file.path(mc_folder, filename))

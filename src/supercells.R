@@ -3,62 +3,21 @@
 # Wrapper for the Supercells functionnality to perform QC and DE analysis
 library(SuperCell)
 
-# Uses new cell.annotation to perform DE for each cluster according to treatment
-# vs control and merge all DEs together for a single gamma
-superCells_DE <- function(data,  # gene expression matrix counts
-                          gamma,  # graining level of super cells
-                          weighted,  # whether to perform weighted t-tests or not
-                          test.use,
-                          by.group = F,
-                          split.by = 'sample',
-                          bm = T
-)
-{
-    super <- superCellWrapper(data = data, 
-                              gamma = gamma, 
-                              split.by = split.by,
-                              arithmetic = T,
-                              SC.type = 'Exact',
-                              bm = bm)
-    
-    # DE per cluster group
-    clusters <- unique(super$cell_line)
-    nb_groups <- sapply(clusters, function(x) as.numeric(str_sub(x, -1, -1)))
-    
-    if (weighted){
-        myFunc <- supercell_FindMarkers_weighted
+
+# Wrapper for SuperCell DE computation using either DESeq2, EdgeR, or t-test
+compute_supercell_DE <- function(SC, algo){
+    labels <- SC$cell_line
+    counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
+    if(algo == 'DESeq2'){
+        DE <- computeDESeq2(counts, labels)
+    }else if(algo == 'EdgeR'){
+        DE <- computeEdgeR(counts, labels)
+    }else if(algo == 't-test'){
+        DE <- find_markers(SC$GE, labels)
     }else{
-        myFunc <- supercell_FindMarkers
+        stop('Cannot compute DE of expression, algorithm passed unknown')
     }
-    
-    if(by.group){
-        
-        DEs <- c()
-        for(i in seq_along(max(nb_groups)))
-        {
-            DE <- myFunc(ge = super$GE,
-                            supercell_size = super$supercell_size,
-                            clusters = super$cell_line,
-                            ident.1 = clusters[grep(paste0('^treat.+', i, '$'), clusters)],
-                            ident.2 = clusters[grep(paste0('^ctrl.+', i, '$'), clusters)],
-                            logfc.threshold = 0,
-                            only.pos = F,
-                            do.bootstrapping = F,
-                            test.use = test.use)
-            DEs <- rbind(DEs, DE)
-        }
-    }else{
-        DEs <- myFunc(ge = super$GE,
-                     supercell_size = super$supercell_size,
-                     clusters = super$cell_line,
-                     ident.1 = clusters[grep('^treat', clusters)],
-                     ident.2 = clusters[grep('^ctrl', clusters)],
-                     logfc.threshold = 0,
-                     only.pos = F,
-                     do.bootstrapping = F,
-                     test.use = test.use)
-    }
-    return(arrangeDE(DEs))
+    return(DE)
 }
 
 
@@ -85,34 +44,6 @@ superCells_DEs <- function(data,  # normalized logcounts seurat object
 }
 
 
-# Create super cells using arithmetic or geometric average for
-# the gene expression matrix
-createSuperCells <- function(data, 
-                             gamma, 
-                             arithmetic = TRUE, 
-                             split.by = 'sample'){
-    
-    split.condition <- data[[split.by]][[1]]
-    super <-  SCimplify(GetAssayData(data),
-                        cell.annotation = split.condition,
-                        k.knn = 5,
-                        gamma = gamma,
-                        n.var.genes = 1000,
-                        directed = FALSE
-    )
-    
-    super$cell_line <- supercell_assign(clusters = data$label,
-                                        supercell_membership = super$membership,
-                                        method = "jaccard")
-    
-    # arithmetic average
-    if(arithmetic){
-        super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
-    }else{  # geometric average
-        super$GE <- supercell_GE(GetAssayData(data), super$membership)
-    }
-    return(super)
-}
 
 
 # Create supercells following benchmarking functions from Mariia
@@ -142,11 +73,13 @@ createSuperCellsBM <- function(data,
     super$cell_line <- supercell_assign(clusters = data$label,
                                         supercell_membership = super$membership,
                                         method = "jaccard")
-    if(arithmetic){
-        super$GE <- log(supercell_GE(expm1(GetAssayData(data)), super$membership) + 1)
-    }else{  # geometric average
-        super$GE <- supercell_GE(GetAssayData(data), super$membership)
-    }
+    
+    # Arithmetic average based on normalized (non-log) counts, then take logcount
+    super$GE <- log1p(supercell_GE(expm1(data@assays$RNA@data), super$membership))
+    
+    # Same as above but non-log to input into DESeq2 and EdgeR after multiplication
+    # by supercell_size
+    super$counts <- supercell_GE(expm1(data@assays$RNA@data), super$membership)
     return(super)
 }
 
@@ -157,30 +90,22 @@ superCellWrapper <- function(data,
                              arithmetic = TRUE, 
                              split.by = 'sample',
                              SC.type = 'Exact',
-                             bm = T,
                              norm = T){
     res <- load_superCell(gamma = gamma,
                           arithmetic = arithmetic,
                           split.by = split.by,
                           SC.type = SC.type,
-                          bm = bm,
                           norm = norm)
     
     if(!is.null(res)){
     #    return(res)
     }
-    if(bm){  # benchmarking from Mariia
-        super <- createSuperCellsBM(data = data,
-                                    gamma = gamma,
-                                    arithmetic = arithmetic,
-                                    split.by = split.by,
-                                    SC.type = SC.type)
-    }else{
-        super <- createSuperCells(data = data,
-                                  gamma = gamma,
-                                  arithmetic = arithmetic,
-                                  split.by = split.by)
-    }
+    super <- createSuperCellsBM(data = data,
+                                gamma = gamma,
+                                arithmetic = arithmetic,
+                                split.by = split.by,
+                                SC.type = SC.type)
+   
     save_superCell(super = super,
                    gamma = gamma,
                    arithmetic = arithmetic,
@@ -203,7 +128,6 @@ save_superCell <- function(super,
                                arithmetic = arithmetic,
                                split.by = split.by,
                                SC.type = SC.type,
-                               bm = bm,
                                norm = norm)
     path <- file.path('data', 'SC')
     if(!dir.exists(path)){
@@ -218,13 +142,11 @@ load_superCell <- function(gamma,
                            arithmetic,
                            split.by,
                            SC.type,
-                           bm,
                            norm){
    filename <- createFilename(gamma = gamma,
                               arithmetic = arithmetic,
                               split.by = split.by,
                               SC.type = SC.type,
-                              bm = bm,
                               norm = norm)
     path <- file.path('data', 'SC')
     if(!dir.exists(path)){
@@ -243,14 +165,12 @@ createFilename <- function(gamma,
                            arithmetic,
                            split.by,
                            SC.type,
-                           bm,
                            norm){
     gamma.ch <- as.character(gamma)
     a_g <- ifelse(arithmetic, 'a', 'g')
-    bm_std <- ifelse(bm, 'bm', 'std')
     norm_raw <- ifelse(norm, 'norm', 'raw')
     SC.type <- tolower(SC.type)
-    filename <- paste(gamma.ch, a_g, bm_std, SC.type, split.by, norm_raw, sep = '_')
+    filename <- paste(gamma.ch, a_g, SC.type, split.by, norm_raw, sep = '_')
     filename <- paste0(filename, '.rds')
     return(filename)
 }

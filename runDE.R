@@ -81,8 +81,7 @@ if(!dir.exists(data_folder)){
     stop(sprintf("Cannot load data from folder %s, does not exist", data_folder))
 }
 
-sc_clustered_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
-sc_filtered_data <- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
+single_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
 pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
 bulk_data <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
@@ -126,105 +125,32 @@ if(computePseudo){
 
 
 # ---------------------------------------------------------
-# DE supercells (unweighted)
+# DE supercells
 # ---------------------------------------------------------
 if(computeSuper){
     message('Computing SuperCell DE genes')
     memory.limit(size=56000)
-    super_markers <- superCells_DEs(sc_clustered_data, gammas, 5,
-                                    weighted = F,
-                                    test.use = stat.test,
-                                    bm = T,
-                                    split.by = split.by)
-    
-    volcano_plot(super_markers$`1`, logfc.thres = 0.5) +
-        ggtitle('Volcano plot of SuperCells at level gamma = 5') +
-        theme(plot.title = element_text(hjust = 0.5))
-    
-    super_markers <- lapply(super_markers, function(x) subset(x, logFC > 0))
-    saveMarkers(markers = super_markers, 
-                algo = 't-test',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'super')
-    message('Done computing SuperCell DE genes')
-}
-
-
-# ---------------------------------------------------------
-# DE supercells DESeq2
-# ---------------------------------------------------------
-if(computeSuperDes){
-    message('Computing SuperCell DE genes with DESeq2')
-    super_markers_des <- list()
-    
-    for(gamma in gammas){
-        message('\tGamma = ', gamma)
-        # supercells creation with geometric mean as using counts here
-        super <- superCellWrapper(data = sc_filtered_data, 
-                                  gamma = gamma, 
-                                  arithmetic = F,
-                                  split.by = split.by,
-                                  SC.type = 'Exact',
-                                  bm = T,
-                                  norm = F)
-        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-        dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = data.frame(design = super$cell_line), 
-                                      design = ~ design)
-        
-        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        results_wald <- results(dds_wald)
-        
-        super_markers_des[[as.character(gamma)]] <- arrangeDE(results_wald, 
-                                                              oldNameLog = 'log2FoldChange',
-                                                              oldNameP = 'padj')
-    }
-    saveMarkers(markers = super_markers_des, 
-                algo = 'DESeq2',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'super')
-    message('Done computing SuperCell DE genes with DESeq2')
-}
-
-
-# ---------------------------------------------------------
-# DE supercells EdgeR
-# ---------------------------------------------------------
-# Saves at each gamma to avoid loss of information in case of crash
-if(computeSuperEdge){
-    message('Computing SuperCell DE genes with EdgeR')
+    data <- single_data
     DEs <- list()
     for(gamma in gammas){
-        message('\tGamma = ', gamma)
-        # supercells creation with geometric mean as using counts here
-        super <- superCellWrapper(data = sc_filtered_data, 
+        super <- superCellWrapper(data = data, 
                                   gamma = gamma, 
-                                  arithmetic = F,
                                   split.by = split.by,
-                                  SC.type = 'Exact',
-                                  bm = T,
-                                  norm = F)
-        
-        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-        edge <- DGEList(counts = ge, group = super$cell_line)
-        edge <- calcNormFactors(edge)
-        model <- model.matrix(~super$cell_line)
-        edge <- estimateDisp(edge, model)
-        
-        # Quasi likelihood test
-        fit <- glmQLFit(edge, model)
-        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table, 
-                                                oldNameP = 'PValue')
-        
+                                  arithmetic = T,
+                                  SC.type = 'Exact')
+        for(algo in algos){
+            DE <- compute_supercell_DE(super, algo)
+            DEs[[algo]][[as.character(gamma)]] <- DE
+        }
     }
-    saveMarkers(markers = DEs, 
-                algo = 'EdgeR',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'super')
-    message('Done computing SuperCell DE genes with EdgeR')
+    for(algo in algos){
+        saveMarkers(markers = DEs[[algo]], 
+                    algo = algo,
+                    split.by = split.by,
+                    base.path = results_folder,
+                    kind = 'super')
+    }
+    message('Done computing SuperCell DE genes')
 }
 
 

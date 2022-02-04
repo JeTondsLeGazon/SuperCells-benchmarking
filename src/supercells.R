@@ -4,48 +4,6 @@
 library(SuperCell)
 
 
-# Wrapper for SuperCell DE computation using either DESeq2, EdgeR, or t-test
-compute_supercell_DE <- function(SC, algo){
-    labels <- SC$cell_line
-    counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
-    if(algo == 'DESeq2'){
-        DE <- computeDESeq2(counts, labels)
-    }else if(algo == 'EdgeR'){
-        DE <- computeEdgeR(counts, labels)
-    }else if(algo == 't-test'){
-        DE <- find_markers(SC$GE, labels)
-    }else{
-        stop('Cannot compute DE of expression, algorithm passed unknown')
-    }
-    return(DE)
-}
-
-
-# Computes DE genes for superCells at different graining levels
-superCells_DEs <- function(data,  # normalized logcounts seurat object
-                           gammas,  # list of graning levels to use
-                           knn,  # number of nearest neighbors to use
-                           weighted = F,
-                           test.use = 't', 
-                           split.by = 'sample',
-                           bm = T) 
-{
-    super_DEs <- list()
-    for(gam in gammas){
-            super_res <- superCells_DE(data,
-                                       gamma = gam,
-                                       weighted = weighted,
-                                       test.use = test.use, 
-                                       split.by = split.by,
-                                       bm = bm)
-        super_DEs[[as.character(gam)]] <- super_res
-    }
-    return(super_DEs)
-}
-
-
-
-
 # Create supercells following benchmarking functions from Mariia
 # Uses package supercellsBM
 createSuperCellsBM <- function(data, 

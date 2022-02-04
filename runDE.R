@@ -40,7 +40,7 @@ library(SuperCellBM)
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
-source('src/DEbulk.R')
+source('src/compute_de.R')
 
 # ---------------------------------------------------------
 # Meta parameters
@@ -202,7 +202,7 @@ if(computeMeta){
 
 
 # ---------------------------------------------------------
-# Metacell via SuperCell t-test
+# Metacell SuperCell-like
 # ---------------------------------------------------------
 # TODO: like supercells
 if(computeMetaSC){
@@ -231,126 +231,47 @@ if(computeMetaSC){
 
 
 # ---------------------------------------------------------
-# Random grouping t-test
+# Random grouping
 # ---------------------------------------------------------
-if(computeRandomGroup){
-    message('Computing Random grouping t-test')
-    data = sc_clustered_data
+# TODO: like supercells
+if(computeRandom){
+    message('Computing Random grouping DE')
     DEs <- list()
     for(gamma in gammas){
-        super <- superCellWrapper(data = data, 
+        super <- superCellWrapper(data = single_data, 
                                   gamma = gamma, 
                                   arithmetic = T,
                                   split.by = split.by,
-                                  SC.type = 'Random',
-                                  bm = T)
-
-        rdm_markers <- supercell_FindMarkers(ge = super$GE,
-                                       supercell_size = super$supercell_size,
-                                       clusters = super$cell_line,
-                                       ident.1 = 'treat',
-                                       ident.2 = 'ctrl',
-                                       logfc.threshold = 0,
-                                       only.pos = F,
-                                       do.bootstrapping = F,
-                                       test.use = stat.test)
+                                  SC.type = 'Random')
+        for(algo in algos){
+            DE <- compute_supercell_DE(super, algo)
+            DEs[[algo]][[gamma]] <- DE
+        }
         
-        DEs[[as.character(gamma)]] <- arrangeDE(rdm_markers)
+        
     }
-    saveMarkers(markers = DEs, 
-                algo = 't-test',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'random')
-    message('Done computing Random grouping t-test')
-}
-
-
-# ---------------------------------------------------------
-# Random grouping DESeq2
-# ---------------------------------------------------------
-if(computeRandomGroupDes){
-    memory.limit(size=56000)
-    message('Computing Random grouping DESeq2')
-    DEs <- list()
-    data = sc_filtered_data
-    for(gamma in gammas){
-        super <- superCellWrapper(data = data, 
-                                  gamma = gamma, 
-                                  arithmetic = F,
-                                  split.by = split.by,
-                                  SC.type = 'Random',
-                                  bm = T,
-                                  norm = F)
-        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-        dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = data.frame(design = super$cell_line), 
-                                      design = ~ design)
-        
-        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        results_wald <- results(dds_wald)
-        
-        DEs[[as.character(gamma)]] <- arrangeDE(results_wald, 
-                                                   oldNameLog = 'log2FoldChange',
-                                                   oldNameP = 'padj')
+    for(algo in algos){
+        saveMarkers(markers = DEs[[algo]], 
+                    algo = algo,
+                    split.by = split.by,
+                    base.path = results_folder,
+                    kind = 'random')
     }
-    saveMarkers(markers = DEs, 
-                algo = 'DESeq2',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'random')
-    message('Done computing Random grouping DESeq2')
-}
-
-
-
-# ---------------------------------------------------------
-# Random grouping EdgeR
-# ---------------------------------------------------------
-if(computeRandomGroupEdge){
-    memory.limit(size=56000)
-    message('Computing Random grouping EdgeR')
-    DEs <- list()
-    data = sc_filtered_data
-    for(gamma in gammas){
-        super <- superCellWrapper(data = data, 
-                                  gamma = gamma, 
-                                  arithmetic = F,
-                                  split.by = split.by,
-                                  SC.type = 'Random',
-                                  bm = T,
-                                  norm = F)
-        ge <- floor(sweep(super$GE, 2, super$supercell_size, '*'))
-
-        edge <- DGEList(counts = ge, group = super$cell_line)
-        edge <- calcNormFactors(edge)
-        model <- model.matrix(~super$cell_line)
-        edge <- estimateDisp(edge, model)
-        
-        # Quasi likelihood test
-        fit <- glmQLFit(edge, model)
-        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
-                                                   oldNameP = 'PValue')
-    }
-    saveMarkers(markers = DEs, 
-                algo = 'EdgeR',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'random')
-    message('Done computing Random grouping EdgeR')
+    message('Done computing Random grouping DE')
 }
 
 
 # ---------------------------------------------------------
 # Subsampling
 # ---------------------------------------------------------
+# TODO: like supercells
 if(computeSubSampling){
-    message('Computing Subsampling t-test')
-    data = sc_filtered_data
+    message('Computing Subsampling DE')
     DEs <- list()
+    data <- single_data
     for(gamma in gammas){
         SC.list <- compute_supercells(
-            sc = data,
+            sc = single_data,
             ToComputeSC = T,
             data.folder = 'data/',
             filename = paste0('superCells', gamma),
@@ -365,108 +286,21 @@ if(computeSubSampling){
             seed.seq = c(0)
         )
         cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
-        data$keep <- rep(F, ncol(data))
+        
+        data$keep <- rep(F, ncol(single_data))
         data$keep[cells.idx] <- T
         keep.data <- subset(data, subset = keep == T)
-        sub_markers <- find_markers(keep.data, stat.test)
-        DEs[[as.character(gamma)]] <- sub_markers
+        for(algo in algos){
+            DE <- compute_DE_single(keep.data, algo)
+            DEs[[algo]][[gamma]] <- DE
+        }
     }
-    saveMarkers(markers = DEs, 
-                algo = 't-test',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'subsampling')
-    message('Done computing Subsampling t-test')
-}
-
-
-# ---------------------------------------------------------
-# Subsampling DESeq2
-# ---------------------------------------------------------
-if(computeSubSamplingDes){
-    message('Computing Subsampling DESeq2')
-    data = sc_filtered_data
-    DEs <- list()
-    for(gamma in gammas){
-        SC.list <- compute_supercells(
-            sc = data,
-            ToComputeSC = T,
-            data.folder = 'data/',
-            filename = paste0('superCells', gamma),
-            gamma.seq = c(gamma),
-            n.var.genes = 1000,
-            k.knn = 5,
-            n.pc = 10,
-            approx.N = 1000,
-            fast.pca = TRUE,
-            genes.use = NULL, 
-            genes.exclude = NULL,
-            seed.seq = c(0)
-        )
-        cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
-        ge <- GetAssayData(sc_filtered_data)[, cells.idx]
-        labels <- data.frame(label = data$label[cells.idx])
-        dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = labels, 
-                                      design = ~ label)
-        
-        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        results_wald <- results(dds_wald)
-        
-        DEs[[as.character(gamma)]] <- arrangeDE(results_wald, 
-                                                   oldNameLog = 'log2FoldChange',
-                                                   oldNameP = 'padj')
+    for(algo in algos){
+        saveMarkers(markers = DEs[[algo]], 
+                    algo = 't-test',
+                    split.by = split.by,
+                    base.path = results_folder,
+                    kind = 'subsampling')
     }
-    saveMarkers(markers = DEs, 
-                algo = 'DESeq2',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'subsampling')
-    message('Done computing Subsampling DESeq2')
-}
-
-# ---------------------------------------------------------
-# Subsampling EdgeR
-# ---------------------------------------------------------
-if(computeSubSamplingEdge){
-    message('Computing Subsampling EdgeR')
-    data = sc_filtered_data
-    DEs <- list()
-    for(gamma in gammas){
-        SC.list <- compute_supercells(
-            sc = data,
-            ToComputeSC = T,
-            data.folder = 'data/',
-            filename = paste0('superCells', gamma),
-            gamma.seq = c(gamma),
-            n.var.genes = 1000,
-            k.knn = 5,
-            n.pc = 10,
-            approx.N = 1000,
-            fast.pca = TRUE,
-            genes.use = NULL, 
-            genes.exclude = NULL,
-            seed.seq = c(0)
-        )
-        cells.idx <- SC.list$Subsampling[[as.character(gamma)]][[1]]$cells.use.idx
-        ge <- GetAssayData(sc_filtered_data)[, cells.idx]
-        labels <- data$label[cells.idx]
-        
-        # EdgeR DE
-        edge <- DGEList(counts = ge, group = labels)
-        edge <- calcNormFactors(edge)
-        model <- model.matrix(~labels)
-        edge <- estimateDisp(edge, model)
-        
-        # Quasi likelihood test
-        fit <- glmQLFit(edge, model)
-        DEs[[as.character(gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
-                                                oldNameP = 'PValue')
-    }
-    saveMarkers(markers = DEs, 
-                algo = 'EdgeR',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'subsampling')
-    message('Done computing Subsampling EdgeR')
+    message('Done computing Subsampling DE')
 }

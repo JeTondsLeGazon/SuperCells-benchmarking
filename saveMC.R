@@ -1,5 +1,6 @@
 library(metacell)
 library(config)
+library(Seurat)
 
 find_common_genes <- function(files, mc_folder, samples, mc.type){
   genes.per.gamma <- list()
@@ -26,7 +27,7 @@ find_common_genes <- function(files, mc_folder, samples, mc.type){
 }
 
 
-create_metacell <- function(genes, samples, files, mc_folder, mc.type){
+create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_data){
   MC <- sapply(seq_len(20), function(x) list())
   MC.mcClass <- sapply(seq_len(20), function(x) list())
   
@@ -44,7 +45,6 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
         MC[[i]]$sample <- rep(samp, ncol(ge))
         MC[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
         MC[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
-        MC[[i]]$e_gc <- e_gc
         MC.mcClass[[i]] <- data[[i]][[1]]$mc_info$mc
       }else{
         MC[[i]]$ge <- cbind(MC[[i]]$ge,
@@ -56,8 +56,7 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
         names(MC[[i]]$size) <- seq_along(MC[[i]]$size)
         MC[[i]]$membership <- c(MC[[i]]$membership,
                                         data[[i]][[1]]$mc_info$mc@mc + max(MC[[i]]$membership))
-        MC[[i]]$e_gc <- cbind(MC[[i]]$e_gc,
-                              e_gc)
+
         MC.mcClass[[i]]@mc <- c(MC.mcClass[[i]]@mc,
                                         
                                         data[[i]][[1]]$mc_info$mc@mc + max(MC.mcClass[[i]]@mc))
@@ -73,8 +72,12 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
     colnames(MC[[i]]$ge) <- new.colnames
     MC[[i]]$gamma <- round(N.sc / ncol(ge))
     
+    used.cells <- names(MC.mcClass[[i]]@mc)
+    used.cells.idx <- which(used.cells %in% colnames(single_data@assays$RNA@counts))
+    used.cells <- used.cells[used.cells.idx]
+    MC.mcClass[[i]]@mc <- MC.mcClass[[i]]@mc[used.cells]
     MC.mcClass[[i]] <- mc_compute_fp(mc = MC.mcClass[[i]],
-                                             us = data_raw@assays$RNA@counts[,names(MC.mcClass[[i]]@mc)])
+                                     us = single_data@assays$RNA@counts[, used.cells])
     
     MC[[i]]$mc_fp_updated <- MC.mcClass[[i]] 
   }
@@ -93,8 +96,8 @@ mc_folder <- file.path('data', config$intermediaryDataFile, sample_vs_condition)
 files <- list.files(mc_folder)
 files.used <- files[grep('MC', files)]
 samples_condition <- sapply(files.used, function(x) strsplit(x, '_')[[1]][1])
-#sc_data <- readRDS('data/hagai_mouse_lps_data/singleCellFiltered.rds')
-N.sc <- 16882  # TODO: change this
+single_data <- readRDS(file.path('data/', config$intermediaryDataFile, 'singleCellClusteredNormalized.rds'))
+N.sc <- ncol(single_data)
 
 # Default
 genes <- find_common_genes(files = files.used,
@@ -106,7 +109,8 @@ MC <- create_metacell(genes = genes,
                               samples = samples_condition,
                               files = files.used,
                               mc_folder = mc_folder,
-                              mc.type = mc.type)
+                              mc.type = mc.type,
+                              single_data = single_data)
 if(mc.type == 'Metacell_default'){
   filename <- 'mc_default.rds'
 }else{

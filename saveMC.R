@@ -28,6 +28,7 @@ find_common_genes <- function(files, mc_folder, samples, mc.type){
 
 create_metacell <- function(genes, samples, files, mc_folder, mc.type){
   MC <- sapply(seq_len(20), function(x) list())
+  MC.mcClass <- sapply(seq_len(20), function(x) list())
   
   # Rearrange data
   for(samp in samples){
@@ -44,6 +45,7 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
         MC[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
         MC[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
         MC[[i]]$e_gc <- e_gc
+        MC.mcClass[[i]] <- data[[i]][[1]]$mc_info$mc
       }else{
         MC[[i]]$ge <- cbind(MC[[i]]$ge,
                                     ge)
@@ -56,6 +58,9 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
                                         data[[i]][[1]]$mc_info$mc@mc + max(MC[[i]]$membership))
         MC[[i]]$e_gc <- cbind(MC[[i]]$e_gc,
                               e_gc)
+        MC.mcClass[[i]]@mc <- c(MC.mcClass[[i]]@mc,
+                                        
+                                        data[[i]][[1]]$mc_info$mc@mc + max(MC.mcClass[[i]]@mc))
       }
     }
   }
@@ -67,6 +72,11 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type){
     new.colnames <- paste(MC[[i]]$sample, seq_len(ncol(ge)), sep = '_')
     colnames(MC[[i]]$ge) <- new.colnames
     MC[[i]]$gamma <- round(N.sc / ncol(ge))
+    
+    MC.mcClass[[i]] <- mc_compute_fp(mc = MC.mcClass[[i]],
+                                             us = data_raw@assays$RNA@counts[,names(MC.mcClass[[i]]@mc)])
+    
+    MC[[i]]$mc_fp_updated <- MC.mcClass[[i]] 
   }
   
   names(MC) <- sapply(MC, function(x) x$gamma)

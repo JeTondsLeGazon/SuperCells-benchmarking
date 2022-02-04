@@ -127,6 +127,8 @@ if(computePseudo){
 # ---------------------------------------------------------
 # DE supercells
 # ---------------------------------------------------------
+# TODO: change this to have each algo ran separately to save them and not lose
+# everything if crash happens
 if(computeSuper){
     message('Computing SuperCell DE genes')
     memory.limit(size=56000)
@@ -155,144 +157,47 @@ if(computeSuper){
 
 
 # ---------------------------------------------------------
-# DE single cells (seurat)
+# DE single cells
 # ---------------------------------------------------------
+# TODO: include seurat computation as algorithm
 if(computeSingle){
     message('Computing Single cells DE genes with Seurat')
-    single_markers <- singleCell_DE(sc_clustered_data, 
-                                    var.features = 500,
-                                    stat.test)
-    volcano_plot(single_markers, logfc.thres = 0.5) +
-        ggtitle('Volcano plot of single cells from FindAllMarkers (seurat)') +
-        theme(plot.title = element_text(hjust = 0.5))
-    
-    single_markers <- single_markers %>% subset(logFC > 0)
-    saveRDS(single_markers, file.path(results_folder, "singleMarkers.rds"))
+    for(algo in algos){
+        DE <- compute_DE_single(single_data, algo)
+        saveMarkers(markers = DE, 
+                    algo = algo,
+                    split.by = split.by,
+                    base.path = results_folder,
+                    kind = 'single')
+    }
     message('Done computing Single cells DE genes with Seurat')
 }
 
 
 # ---------------------------------------------------------
-# DE single cells (manual)
+# Metacell Footprint
 # ---------------------------------------------------------
-if(computeSingleManual){
-    message('Computing Single cells DE genes manually')
-    manual_single_markers <- find_markers(sc_clustered_data, stat.test)
-    manual_single_markers <- manual_single_markers %>% 
-        arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-        mutate(gene = rownames(.)) %>%
-        subset(logFC > 0)
-    saveRDS(manual_single_markers, file.path(results_folder, "singleMarkersManual.rds"))
-    message('Done computing Single cells DE genes manually')
-}
-
-
-# ---------------------------------------------------------
-# Metacell t-test
-# ---------------------------------------------------------
-# should run runMeta.R first
+# TODO: like supercells
 if(computeMeta){
-    # Metacell own GE matrix from pipeline, manual t-test
     message('Computing MetaCells DE genes with t-test')
     mc.type <- paste('mc', split.by, sep = '_')
     mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
     mc_gammas <- names(mc)
     DEs <- list()
     for(mc_gamma in mc_gammas){
-        # create seurat object
-        ge <- mc[[mc_gamma]]$e_gc
-        colnames(ge) <- seq_along(colnames(ge))
-        labels <- unlist(strsplit(mc[[as.character(mc_gamma)]]$sample, '[0-9]'))
-        meta <- data.frame(label = labels, row.names = colnames(ge))
-        mc_data <- CreateSeuratObject(counts = ge, meta.data = meta)
-        Idents(mc_data) <- 'label'
-        
-        # Run DE
-        metacell_markers_manual <- find_markers(mc_data, stat.test, norm = T)
-        DEs[[as.character(mc_gamma)]] <- metacell_markers_manual
-    }
-    saveMarkers(markers = DEs, 
-                algo = 't-test',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'meta')
-    message('Done computing MetaCells DE genes with t-test')
-}
-
-
-# ---------------------------------------------------------
-# Metacell GE DESeq2
-# ---------------------------------------------------------
-if(computeMetaDes){
-    # Metacell own GE matrix from pipeline, DESeq2
-    message('Computing MetaCells DE genes with DESeq2')
-    mc.type <- paste('mc', split.by, sep = '_')
-    mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
-    mc_gammas <- names(mc)
-    DEs <- list()
-    for(mc_gamma in mc_gammas){
-        ge <- mc[[mc_gamma]]$e_gc
-        sizes <- mc[[mc_gamma]]$size
-        labels <- sapply(mc[[mc_gamma]]$sample, function(x) unlist(strsplit(x, split = '[0-9]')))
-        labels <- data.frame(label = labels)
-        # Run DE
-        ge <- floor(sweep(ge, 2, sizes, '*'))
-        if(!check_one_zero(ge)){  # mandatory for DESeq2 to work
-            ge <-  ge + 1
+        for(algo in algos){
+            DE <- compute_DE_meta()
+            DEs[[algo]][[mc_gamma]] <- DE
         }
-        dds <- DESeqDataSetFromMatrix(ge,
-                                      colData = labels, 
-                                      design = ~ label)
-        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        results_wald <- results(dds_wald)
-        
-        DEs[[as.character(mc_gamma)]] <- arrangeDE(results_wald, 
-                                                oldNameLog = 'log2FoldChange',
-                                                              oldNameP = 'padj')
     }
-    saveMarkers(markers = DEs, 
-                algo = 'DESeq2',
-                split.by = split.by,
-                base.path = 'data',
-                kind = 'meta')
-    message('Done computing MetaCells DE genes with DESeq2')
-}
-
-
-
-# ---------------------------------------------------------
-# Metacell GE EdgeR
-# ---------------------------------------------------------
-if(computeMetaEdge){
-    # Metacell own GE matrix from pipeline, EdgeR
-    message('Computing MetaCells DE genes with EdgeR')
-    mc.type <- paste('mc', split.by, sep = '_')
-    mc <- readRDS(file.path(data_folder, mc.type, 'mc_default.rds'))
-    mc_gammas <- names(mc)
-    DEs <- list()
-    for(mc_gamma in mc_gammas){
-        ge <- mc[[mc_gamma]]$ge
-        sizes <- mc[[mc_gamma]]$size
-        labels <- sapply(mc[[mc_gamma]]$sample, function(x) unlist(strsplit(x, split = '[0-9]')))
-
-        # Run DE
-        ge <- floor(sweep(ge, 2, sizes, '*'))
-        edge <- DGEList(counts = ge, group = labels)
-        edge <- calcNormFactors(edge)
-        model <- model.matrix(~labels)
-        edge <- estimateDisp(edge, model)
-        
-        # Quasi likelihood test
-        fit <- glmQLFit(edge, model)
-        DEs[[as.character(mc_gamma)]] <- arrangeDE(glmQLFTest(fit, coef= 2)$table,
-                                                   oldNameP = 'PValue')
+    for(algo in algos){
+        saveMarkers(markers = DEs[[algo]], 
+                    algo = algo,
+                    split.by = split.by,
+                    base.path = results_folder,
+                    kind = 'meta')
     }
-    saveMarkers(markers = DEs, 
-                algo = 'EdgeR',
-                split.by = split.by,
-                base.path = results_folder,
-                kind = 'meta')
-    message('Done computing MetaCells DE genes with EdgeR')
+    message('Done computing MetaCells DE genes with t-test')
 }
 
 

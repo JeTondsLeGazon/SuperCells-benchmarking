@@ -3,111 +3,42 @@
 # Script that contains all the analysis functions to compare methods
 
 
-# Performs DE analysis with different methods passed as argument on a dataset
-compute_DE_sc <- function(data,  # seurat object containing the normalized data
-                       methods,  # list of methods to use
-                       fc_thres)  # threshold below which no gene is selected
-{
-    tests_results <- list()
-    for(method in methods){
-        tests_results[[method]] <- FindAllMarkers(data, logfc.threshold = fc_thres, test.use = method) %>%
-                                    arrange(p_val_adj, 1 / (abs(avg_log2FC) + 1)) %>%
-                                    dplyr::rename(adj.p.value = p_val_adj, logFC = avg_log2FC)
-    }
-    return(tests_results)
-}
-
-
-# Performs DE analysis with different methods passed as argument on a bulk dataset
-# Careful !! data should not be normalized at this point!!
-compute_DE_bulk <- function(data, meta){
+# Wrapper for Single cell DE computation using either DESeq2, EdgeR, or t-test
+compute_DE_single <- function(data, algo){
+    labels <- data$label
+    counts <- data@assays$RNA@counts
+    ge <- data@assays$RNA@data
     
-    process_table <- function(DE.table, log_fc_name, padj_name){
-        
-        DE.table %>%
-            data.frame() %>%
-            dplyr::rename(adj.p.value = padj_name, logFC = log_fc_name) %>%
-            arrange(adj.p.value, 1 / (abs(logFC) + 1), decrease = T) %>%
-            mutate(gene = row.names(.))
-    }
-    
-    # DESeq2 approach
-    dds <- DESeqDataSetFromMatrix(GetAssayData(data), 
-                           colData = data@meta.data, 
-                           design = ~ label)
-
-    dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-    
-    
-    group.id <- grep('[Uu][Nn][Ss][Tt]|[Cc][Tt][Rr][Ll]', levels(data))
-    
-    results_wald <- results(dds_wald, contrast = c('label', levels(data)[c(2, 1)[group.id]], levels(data)[group.id])) %>%
-                    process_table(log_fc_name = 'log2FoldChange', padj_name = 'padj')
-    
-    # edgeR approach
-    edge <- DGEList(counts = GetAssayData(data), group = Idents(data))
-    edge <- calcNormFactors(edge)
-    model <- model.matrix(~Idents(data))
-    edge <- estimateDisp(edge, model)
-    
-    # Quasi likelihood test
-    fit <- glmQLFit(edge, model)
-    qlf <- glmQLFTest(fit,coef= 2)$table %>%
-        process_table(log_fc_name = 'logFC', padj_name = 'PValue')
-    if(group.id == 2){
-        qlf$logFC <- -(qlf$logFC)  # because does not know how to reverse log ...
-    }
-    
-    
-    return(list('DESeq2-Wald' = results_wald,
-                'edgeR-QLF' = qlf))
-}
-
-
-# Computes differential expression for single-cell data
-singleCell_DE <- function(sc_data, var.features, 
-                          stat.test = 't', 
-                          by.group = F){
-    
-    file.name <- 'singleCell.RData'
-
-    sc_data <- FindVariableFeatures(sc_data, nfeatures = var.features)
-    
-    if(by.group){
-        # Identify number of groups for paired test
-        nb_groups <- sapply(levels(sc_data), 
-                            function(x) as.numeric(str_sub(x, -1, -1)))
-        
-        single_markers <- c()
-        for(i in seq_along(max(nb_groups))){
-            group_id_treat <- grep(paste0('treat', i), levels(sc_data))
-            group_id_ctrl <- grep(paste0('ctrl', i), levels(sc_data))
-            markers <- FindMarkers(sc_data,
-                                   ident.1 = levels(sc_data)[group_id_treat],
-                                   ident.2 = levels(sc_data)[group_id_ctrl],
-                                   only.pos = F, 
-                                   logfc.threshold = 0, 
-                                   test.use = stat.test) %>%
-                mutate(gene = rownames(.))
-            single_markers <- rbind(single_markers, markers)
-        }
+    if(algo == 'DESeq2'){
+        DE <- computeDESeq2(counts, labels)
+    }else if(algo == 'EdgeR'){
+        DE <- computeEdgeR(counts, labels)
+    }else if(algo == 't-test'){
+        DE <- find_markers(ge, labels)
     }else{
-        single_markers <- FindMarkers(sc_data,
-                               ident.1 = levels(sc_clustered_data)[grep('treat', levels(sc_clustered_data))],
-                               ident.2 = levels(sc_clustered_data)[grep('ctrl', levels(sc_clustered_data))],
-                               only.pos = F, 
-                               logfc.threshold = 0, 
-                               test.use = stat.test) %>%
-            mutate(gene = rownames(.))
+        stop('Cannot compute DE of expression, algorithm passed unknown')
     }
-    
-    single_markers <- single_markers %>%
-        dplyr::rename(logFC = avg_log2FC, adj.p.value = p_val_adj) %>%
-        arrange(adj.p.value, 1 / (abs(logFC) + 1), T) %>%
-        subset(!duplicated(.$gene))
-    
-    return(single_markers)
+    return(DE)
 }
+
+
+compute_DE_meta <- function(data, algo){
+    ge <- log(data$ge)  # according to metacells vignette
+    labels <- unlist(strsplit(data$sample, '[0-9]'))  # in case of split.by = sample
+    counts <- floor(sweep(data$ge, 2, data$size, '*'))
+    
+    if(algo == 'DESeq2'){
+        DE <- computeDESeq2(counts, labels)
+    }else if(algo == 'EdgeR'){
+        DE <- computeEdgeR(counts, labels)
+    }else if(algo == 't-test'){
+        DE <- find_markers(ge, labels)
+    }else{
+        stop('Cannot compute DE of expression, algorithm passed unknown')
+    }
+    return(DE)
+}
+
 
 
 # Computes the match between the topn genes between two sets, normalized [0, 1]

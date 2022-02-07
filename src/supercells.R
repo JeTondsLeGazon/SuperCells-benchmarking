@@ -6,7 +6,8 @@
 # Create supercells following benchmarking functions from Mariia
 # Uses package supercellsBM
 createSuperCellsBM <- function(data, 
-                               gamma, 
+                               gamma,
+                               data_folder,
                                arithmetic = TRUE, 
                                split.by = 'sample',
                                SC.type = 'Exact',
@@ -14,11 +15,11 @@ createSuperCellsBM <- function(data,
     
     filename_no_extension <- paste('superCells', gamma, split.by, sep = '_')
     filename <- paste0(filename_no_extension, '.Rds')
-    ToComputeSC <- force_compute | !file.exists(filename)
+    ToComputeSC <- force_compute | !file.exists(file.path(data_folder, 'SC', filename))
     SC.list <- compute_supercells(
         sc = data,
         ToComputeSC = ToComputeSC,
-        data.folder = 'data/SC',
+        data.folder = data_folder,
         filename = filename_no_extension,
         gamma.seq = c(gamma),
         n.var.genes = 1000,

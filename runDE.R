@@ -36,6 +36,7 @@ library(ggExtra)
 library(weights)
 library(zoo)
 library(SuperCellBM)
+library(SuperCell)
 
 source('src/utility.R')
 source('src/supercells.R')
@@ -72,7 +73,7 @@ computeSubSampling <- config$DE$computeSubSampling
 gammas <- config$gammas
 
 # Should we compute Supercell or load available files
-force_compute <- config$compute_supercell
+force_compute <- as.logical(config$compute_supercell)
 
 set.seed(0)
 
@@ -139,7 +140,8 @@ if(computeSuper){
     DEs <- list()
     for(gamma in gammas){
         super <- createSuperCellsBM(data = data, 
-                                  gamma = gamma, 
+                                  gamma = gamma,
+                                  data_folder = data_folder,
                                   split.by = split.by,
                                   arithmetic = T,
                                   SC.type = 'Exact',
@@ -243,10 +245,12 @@ if(computeRandom){
     DEs <- list()
     for(gamma in gammas){
         super <- createSuperCellsBM(data = single_data, 
-                                  gamma = gamma, 
+                                  gamma = gamma,
+                                  data_folder = data_folder,
                                   arithmetic = T,
                                   split.by = split.by,
-                                  SC.type = 'Random')
+                                  SC.type = 'Random',
+                                  force_compute = force_compute)
         for(algo in algos){
             DE <- compute_supercell_DE(super, algo)
             DEs[[algo]][[gamma]] <- DE
@@ -276,11 +280,11 @@ if(computeSubSampling){
     for(gamma in gammas){
         filename_no_extension <- paste('superCells', gamma, split.by, sep = '_')
         filename <- paste0(filename_no_extension, '.Rds')
-        ToComputeSC <- force_compute | !file.exists(filename)
+        ToComputeSC <- force_compute | !file.exists(data_folder, 'SC', filename)
         SC.list <- compute_supercells(
             sc = single_data,
             ToComputeSC = ToComputeSC,
-            data.folder = 'data/',
+            data.folder = data_folder,
             filename = filename_no_extension,
             gamma.seq = c(gamma),
             n.var.genes = 1000,

@@ -88,6 +88,8 @@ for(marker in markers.type){
 # ---------------------------------------------------------
 # Benchmarking plot to compare different techniques
 # ---------------------------------------------------------
+# Benchmarking plots to compare supercells, metacells, random grouping and subsampling
+# Aims to follow plots given in SuperCell manuscript, written by Mariia
 for(algo in algos){
     stat.method <- switch(algo, 'DESeq2' = 'des', 'EdgeR' = 'edge', 't-test' = 't')
     to_compare <- list()
@@ -96,7 +98,7 @@ for(algo in algos){
         to_compare[[type_algo]] <- markers[[marker]][[algo]]
     }
 
-    for(score.method in c('match')){
+    for(score.method in c('auc', 'tpr', 'match')){
         plot_results_BM(to_compare, 
                         markers$bulk[[algo]],
                         GT.type = algo,
@@ -106,58 +108,97 @@ for(algo in algos){
 
 
 # ---------------------------------------------------------
-# LogFC - LogFC graphs
+# LogFC - LogFC graphs (with t-test)
 # ---------------------------------------------------------
-
-p1 <- LogFcLogFcPlot(single_markers, super_markers$`1`) + 
-    ylab('LogFC Super Cells gamma = 1') +
-    xlab('LogFC single cells (seurat)')
-p2 <- LogFcLogFcPlot(single_markers, super_markers$`2`) +
-    ylab('LogFC Super Cells gamma = 2') +
-    xlab('LogFC single cells (seurat)')
-p3 <- LogFcLogFcPlot(single_markers, super_markers$`5`) + 
-    ylab('LogFC Super Cells gamma = 5') +
-    xlab('LogFC single cells (seurat)')
-p4 <- LogFcLogFcPlot(single_markers, super_markers$`10`) + 
-    ylab('LogFC Super Cells gamma = 10') +
-    xlab('LogFC single cells (seurat)')
-
-fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs single cells', 
-                                     face = 'bold', size = 14))
+# This figure aims to show the evolution of logFC at different gammas when compared to 
+# the single-cell level (gamma = 1). It helped implement the arithmetic mean instead of
+# of the geometric one in the computation of the ge of supercells to have constant
+# LogFCs whatever the gamma
+if('t-test' %in% algos){
+    super_markers <- markers$super[[1]]
+    p1 <- LogFcLogFcPlot(super_markers$`1`, super_markers$`1`) + 
+        ylab('LogFC Super Cells gamma = 1') +
+        xlab('LogFC single cells (seurat)')
+    p2 <- LogFcLogFcPlot(super_markers$`1`, super_markers$`2`) +
+        ylab('LogFC Super Cells gamma = 2') +
+        xlab('LogFC single cells (seurat)')
+    p3 <- LogFcLogFcPlot(super_markers$`1`, super_markers$`5`) + 
+        ylab('LogFC Super Cells gamma = 5') +
+        xlab('LogFC single cells (seurat)')
+    p4 <- LogFcLogFcPlot(super_markers$`1`, super_markers$`10`) + 
+        ylab('LogFC Super Cells gamma = 10') +
+        xlab('LogFC single cells (seurat)')
+    
+    fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+    annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs single cells', 
+                                         face = 'bold', color = 'red', size = 14))
+}
 
 
 # ---------------------------------------------------------
 # Rank top n genes
 # ---------------------------------------------------------
-concerned_genes <- single_markers$gene[1:100]
-rank_plot(concerned_genes, bulk_markers$`DESeq2-Wald`, super_markers)
+# We compare the ranking of the n first genes between two methods to show how
+# the ranking is affected with different techniques/gammas
+# Note that no genes may appear at a certain gamma, as the selected genes (concerned genes)
+# are those of supercell at gamma = 1
 
-
-# ---------------------------------------------------------
-# Weighted vs unweighted
-# ---------------------------------------------------------
-plot(NULL, 
-     xlab = 'Unweighted -log10(p values)', 
-     ylab = 'Weighted -log10(p values)',
-     main = 'P values of t-test vs weighted t-test at different gammas',
-     xlim = c(0, 10), 
-     ylim = c(0, 10))
-colors <- c('red', 'blue', 'green', 'black')
-legend_names <- c()
-for(i in 1:4){
-    unweighted <- super_markers[[gammas[i]]]$adj.p.value
-    weighted <- super_markers_weighted[[gammas[i]]]$adj.p.value
-    
-    row_sub <- which(unweighted != 0 & weighted != 0)
-    unweighted <- unweighted[row_sub]
-    weighted <- weighted[row_sub]
-    
-    lines(-log10(unweighted), -log10(weighted), 
-          col = colors[i], lty = 1, type = 'l', lwd = 2)
-    legend_names <- c(legend_names, sprintf('Gamma = %s', gammas[i]))
+# Supercells vs Bulk
+N <- 100
+for(algo in algos){
+    super_markers <- markers$super[[algo]]
+    concerned_genes <- super_markers$`1`$gene[1:N]
+    fig <- rank_plot(concerned_genes, markers$bulk[[algo]], super_markers)
+    title <- sprintf('Comparison of Bulk and Supercell, calculated with %s',
+                     algo)
+    fig <- annotate_figure(fig, top = text_grob(title, color = "red", 
+                                         face = "bold", size = 14))
+    print(fig)
 }
-legend('topright', legend = legend_names, col = colors, lty = 1)
+
+# Supercells vs Metacells at gamma ~70
+for(algo in algos){
+    super_markers <- markers$super[[algo]]
+    concerned_genes <- super_markers$`1`$gene[1:N]
+    fig <- rank_plot(concerned_genes, markers$metasc[[algo]][[2]], super_markers)
+    title <- sprintf('Comparison of Metacell (gamma = 32) and Supercell, calculated with %s',
+                     algo)
+    fig <- annotate_figure(fig, top = text_grob(title, color = "red", 
+                                                face = "bold", size = 14))
+    print(fig)
+}
+
+# ---------------------------------------------------------
+# Weighted vs unweighted t-test
+# ---------------------------------------------------------
+# Compare weithed vs unweighted t-test for p-value computation of supercell markers
+# At first, weighted t-test was used with supercell size as weitghts. However, the 
+# weighted t-test lowers all p values by a huge margin, resulting in some cases in all
+# genes being DE. Unweighted t-test was therefore selected for the analysis
+if('t-test' %in% algos){
+    selected.genes <- markers$bulk$`t-test`$gene[1:10]
+    points <- data.frame(x = c(), y = c(), gamma = c())
+    for(gamma in gammas[c(1,2,3,4)]){
+        super <- createSuperCellsBM(sc_data, 
+                                    gamma = gamma,
+                                    results_folder = results_folder,
+                                    arithmetic = TRUE,
+                                    split.by = split.by,
+                                    SC.type = 'Exact',
+                                    force_compute = as.logical(config$compute_supercell))
+        idx <- super$cell_line == 'treat'
+        idy <- super$cell_line == 'ctrl'
+        weighted <- apply(super$GE[selected.genes, ], 1, 
+                     function(row) weights::wtd.t.test(x = row[idx],
+                                                       y = row[idy],
+                                                       weight = super$supercell_size[idx],
+                                                       weighty = super$supercell_size[idy])$coefficients[['p.value']])
+        unweighted <- markers$super$`t-test`[[gamma]]$p.value[selected.genes]
+        points$x <- c(points$x, weighted)
+        points$y <- c(points$y, unweighted)
+        points$gamma <- c(points$gamma, rep(gamma, length(selected.genes)))
+    }
+}
 
 
 # ---------------------------------------------------------

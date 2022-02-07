@@ -196,7 +196,7 @@ volcano_plot <- function(stats,
 }
 
 
-# Shows rank of given genes between a set of markers and superCells markers
+# Shows rank of given genes between a set of markers and superCells like structure markers
 rank_plot <- function(concerned_genes, test_markers, super_markers){
 
     rank1 <- match(concerned_genes, test_markers$gene)
@@ -220,6 +220,7 @@ rank_plot <- function(concerned_genes, test_markers, super_markers){
     p3 <- subplot(rank1, rank4, 50)
     p4 <- subplot(rank1, rank5, 1000)
     ggarrange(p1, p2, p3, p4)
+
 }
 
 

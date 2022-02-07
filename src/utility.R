@@ -394,3 +394,33 @@ check_one_zero <- function(ge){
     row_contains_zero <- apply(ge, 1, function(row) sum(row == 0) == 0)
     return(sum(row_contains_zero) > 0)
 }
+
+
+# Load markers from different algorithm into a list
+load_markers <- function(markers.type, algos, split.by, results.path){
+    algo.pairing <- list('DESeq2' = 'des',
+                         'EdgeR' = 'edge',
+                         't-test' = 't')
+    if(sum(algos %in% names(algo.pairing)) != length(algos)){
+        stop('Could not find some algorithms in provided list')
+    }
+    
+    markers <- list()
+    for(algo in algos){
+        stat.method <- algo.pairing[[algo]]
+        filename <- paste0(paste(markers.type, stat.method, sep = '_'), '.rds')
+        if(markers.type == 'single'){
+            top.dir <- 'single'
+        }else if(markers.type != 'bulk'){
+            top.dir <- paste('markers', split.by, sep = '_')
+        }else{
+            top.dir <- 'GT'
+        }
+        full.path <- file.path(results.path, top.dir, filename)
+        if(!file.exists(full.path)){
+            stop(sprintf('Could not find markers at %s', full.path))
+        }
+        markers[[algo]] <- readRDS(full.path)
+    }
+    return(markers)
+}

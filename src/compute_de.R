@@ -8,10 +8,16 @@
 # of counts matrix
 computeDESeq2 <- function(counts, labels){
     
-    message(sprintf('Computing DESeq2 on matrix of dimension %s', dim(counts)))
+    message(sprintf('Computing DESeq2 on matrix of dimension %s x %s', dim(counts)[1], dim(counts)[2]))
     if(!check_one_zero(counts)){  # mandatory for DESeq2 to work
         counts <-  counts + 1
     }
+    
+    # must have df for DESeq2 colData and design
+    if(class(labels) != 'data.frame'){
+        labels <- data.frame(label = labels)
+    }
+    
     dds <- DESeqDataSetFromMatrix(counts,
                                   colData = labels, 
                                   design = ~ label)
@@ -28,7 +34,7 @@ computeDESeq2 <- function(counts, labels){
 # of counts matrix
 computeEdgeR <- function(counts, labels){
     
-    message(sprintf('Computing EdgeR on matrix of dimension %s', dim(counts)))
+    message(sprintf('Computing EdgeR on matrix of dimension %s x %s', dim(counts)[1], dim(counts)[2]))
     edge <- DGEList(counts = counts, group = labels)
     edge <- calcNormFactors(edge)
     model <- model.matrix(~labels)
@@ -89,9 +95,9 @@ compute_DE_single <- function(data, algo){
 # Wrapper for Metacell DE computation using either DESeq2, EdgeR, or t-test
 compute_DE_meta <- function(data, algo){
     
-    ge <- log(data$ge)  # according to metacells vignette
+    ge <- log(data$mc_fp_updated)  # according to metacells vignette
     labels <- unlist(strsplit(data$sample, '[0-9]'))  # in case of split.by = sample
-    counts <- floor(sweep(data$ge, 2, data$size, '*'))
+    counts <- floor(sweep(data$mc_fp_updated, 2, data$size, '*'))
     
     if(algo == 'DESeq2'){
         DE <- computeDESeq2(counts, labels)
@@ -110,15 +116,17 @@ compute_DE_meta <- function(data, algo){
 compute_DE_metasc <- function(data, single_data, algo){
     
     # Metacell drops some cells along the way
-    cells.use <- colnames(data)[colnames(data) %in% names(mc[[mc_gamma]]$membership)]
+    cells.use <- colnames(single_data)[colnames(single_data) %in% names(data$membership)]
     
     # Input groups of Metacell into SuperCell GE computation
     ge <- supercell_GE(ge = single_data@assays$RNA@data[, cells.use],
-                       groups =  data[[mc_gamma]]$membership[cells.use])
+                       groups =  data$membership[cells.use])
     
     # Use normalized counts (exm1(ge)) as input to compute normalized average counts
-    counts <- supercell_GE(ge = expm1(single_data@assays$RNA@data[, cells.use]),
-                           groups =  data[[mc_gamma]]$membership[cells.use])
+    counts_avg <- supercell_GE(ge = expm1(single_data@assays$RNA@data[, cells.use]),
+                           groups =  data$membership[cells.use])
+    counts <- floor(sweep(counts_avg, 2, data$size, '*'))
+    labels <- unlist(strsplit(data$sample, '[0-9]'))  # in case of split.by = sample
     
     if(algo == 'DESeq2'){
         DE <- computeDESeq2(counts, labels)

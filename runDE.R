@@ -71,6 +71,9 @@ computeSubSampling <- config$DE$computeSubSampling
 # Gammas for supercells
 gammas <- config$gammas
 
+# Should we compute Supercell or load available files
+force_compute <- config$compute_supercell
+
 set.seed(0)
 
 
@@ -135,11 +138,12 @@ if(computeSuper){
     data <- single_data
     DEs <- list()
     for(gamma in gammas){
-        super <- superCellWrapper(data = data, 
+        super <- createSuperCellsBM(data = data, 
                                   gamma = gamma, 
                                   split.by = split.by,
                                   arithmetic = T,
-                                  SC.type = 'Exact')
+                                  SC.type = 'Exact',
+                                  force_compute = force_compute)
         for(algo in algos){
             DE <- compute_supercell_DE(super, algo)
             DEs[[algo]][[as.character(gamma)]] <- DE
@@ -238,7 +242,7 @@ if(computeRandom){
     message('Computing Random grouping DE')
     DEs <- list()
     for(gamma in gammas){
-        super <- superCellWrapper(data = single_data, 
+        super <- createSuperCellsBM(data = single_data, 
                                   gamma = gamma, 
                                   arithmetic = T,
                                   split.by = split.by,
@@ -270,11 +274,14 @@ if(computeSubSampling){
     DEs <- list()
     data <- single_data
     for(gamma in gammas){
+        filename_no_extension <- paste('superCells', gamma, split.by, sep = '_')
+        filename <- paste0(filename_no_extension, '.Rds')
+        ToComputeSC <- force_compute | !file.exists(filename)
         SC.list <- compute_supercells(
             sc = single_data,
-            ToComputeSC = T,
+            ToComputeSC = ToComputeSC,
             data.folder = 'data/',
-            filename = paste0('superCells', gamma),
+            filename = filename_no_extension,
             gamma.seq = c(gamma),
             n.var.genes = 1000,
             k.knn = 5,

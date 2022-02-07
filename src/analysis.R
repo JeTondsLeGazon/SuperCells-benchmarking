@@ -40,7 +40,7 @@ compute_score <- function(DEAs,  # list containing the results of DEA from super
 # Uses t-test as statistical test
 find_markers <- function(ge, labels){
     
-    message(sprintf('Computing t-test on matrix of dimension %s', dim(ge)))
+    message(sprintf('Computing t-test on matrix of dimension %s x %s', dim(ge)[1], dim(ge)[2]))
     treat_grp <- grep('treat', labels)
     ctrl_grp <- grep('ctrl', labels)
     
@@ -54,7 +54,7 @@ find_markers <- function(ge, labels){
     
     pvals <- apply(ge, 1, function(x) t.test(x[treat_grp], x[ctrl_grp])$p.value)
     padj <- p.adjust(pvals, 'BH', nrow(ge))
-    DE <- data.frame(row.names = rownames(data),
+    DE <- data.frame(row.names = rownames(ge),
                     p.value = pvals,
                     logFC = logFCs, 
                     adj.p.value = padj)
@@ -108,12 +108,7 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
         }else if(grepl('meta', names(super_mc)[i])){
             tag <- 'MetaCells'
             chr.used <- c(chr.used, 4)
-            if(grepl('2', names(super_mc)[i])){
-                colors.used <- c(colors.used, 'darkgreen')
-            }else{
-                colors.used <- c(colors.used, 'blue')
-                
-            }
+            colors.used <- c(colors.used, 'darkgreen')
         }else if(grepl('super', names(super_mc)[i])){
             tag <- 'SuperCells'
             chr.used <- c(chr.used, 1)
@@ -143,11 +138,11 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
                      paste(super_mc_legend, names(others)[i], sep = ' vs '))
     }
     if(score.type == 'match'){
-        title <- sprintf('True positive rate among the top 100 DE genes against Ground truth(Bulk)', tag)
+        title <- sprintf('True positive rate among the top 100 DE genes against Ground truth (Bulk)', tag)
     }else if (score.type == 'auc'){
-        title <- sprintf('AUROC of DE genes against Ground truth(Bulk)', tag)
+        title <- sprintf('AUROC of DE genes against Ground truth (Bulk)', tag)
     }else if(score.type == 'tpr'){
-        title <- sprintf('True positive rate of DE genes against Ground truth(Bulk)', tag)
+        title <- sprintf('True positive rate of DE genes against Ground truth (Bulk)', tag)
     }
     if(score.type == 'tpr' | score.type == 'auc'){
         legend.pos <- 'bottomleft'

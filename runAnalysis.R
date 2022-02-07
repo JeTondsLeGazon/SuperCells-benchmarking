@@ -78,47 +78,30 @@ pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.r
 bulk_data <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
 
 # DE markers
-bulk_markers <- load_markers('bulk', algos, split.by, results_folder)
-super_markers <- load_markers('super', algos, split.by, results_folder)
-mc_markers <- load_markers('meta', algos, split.by, results_folder)
-mc_sc_markers <- load_markers('metasc', algos, split.by, results_folder)
-random_markers <- load_markers('random', algos, split.by, results_folder)
-sub_markers <- load_markers('subsampling', algos, split.by, results_folder)
+markers.type <- c('bulk', 'super', 'meta', 'metasc', 'random', 'subsampling')
+markers <- list()
+for(marker in markers.type){
+    markers[[marker]] <- load_markers(marker, algos, split.by, results_folder)
+}
 
 
 # ---------------------------------------------------------
-# Comparison
+# Benchmarking plot to compare different techniques
 # ---------------------------------------------------------
-su_mc <- list('super_t' = super_markers,
-              'meta_t' = mc_markers,
-              'metasc_t' = mc_sc_markers, 
-              'random_t' = random_markers,
-              'sub_t' = sub_sampling)
+for(algo in algos){
+    stat.method <- switch(algo, 'DESeq2' = 'des', 'EdgeR' = 'edge', 't-test' = 't')
+    to_compare <- list()
+    for(marker in setdiff(markers.type, 'bulk')){
+        type_algo <- paste(marker, stat.method, sep = '_')
+        to_compare[[type_algo]] <- markers[[marker]][[algo]]
+    }
 
-comp <- list('Bulk (t-test)' = bulk_markers)
-for(score.type in c('auc', 'tpr', 'match')){
-    plot_results_flex(su_mc, comp, score.type = score.type)
-}
-
-su_mc <- list('super_des' = super_markers_des,
-              'meta_des' = mc_markers_des,
-              'metasc_des' = mc_sc_markers_des, 
-              'random_des' = random_markers_des,
-              'sub_des' = sub_sampling_des)
-
-comp <- list('Bulk (DESeq2)' = bulk_markers_des)
-for(score.type in c('auc', 'tpr', 'match')){
-    plot_results_flex(su_mc, comp, score.type = score.type)
-}
-su_mc <- list('super_edge' = super_markers_edge,
-              'meta_edge' = mc_markers_edge,
-              'metasc_edge' = mc_sc_markers_edge, 
-              'random_edge' = random_markers_edge,
-              'sub_edge' = sub_sampling_edge)
-
-comp <- list('Bulk (EdgeR)' = bulk_markers_edge)
-for(score.type in c('auc', 'tpr', 'match')){
-    plot_results_flex(su_mc, comp, score.type = score.type)
+    for(score.method in c('match')){
+        plot_results_BM(to_compare, 
+                        markers$bulk[[algo]],
+                        GT.type = algo,
+                        score.type = score.method)
+    }
 }
 
 

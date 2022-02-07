@@ -74,8 +74,8 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
 }
 
 
-# plots different super/meta cells vs others
-plot_results_flex <- function(super_mc, others, score.type = 'match'){
+# Plots for benchmarking purpose following special coloring and character plot
+plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'match'){
     plot(NULL, 
          ylim=c(0,1), 
          xlim=c(1, 100), 
@@ -87,20 +87,16 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
     score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
     if(score.type == 'match'){
         super_mc <- lapply(super_mc, function(x) lapply(x, function(xx) xx[1:100, ]))
-        others <- lapply(others, function(x) x[1:100, ])
+        GT <- GT[1:100, ]
     }
     
-    # Case when we want to compare each element of super_mc to a single in others
-    if(length(others) == 1){
-        others <- rep(others, length(super_mc), simpifly = F)
-    }
 
     chr.used <- c()
     colors.used <- c()
     legends <- c()
-    for (i in seq_along(others)){
-        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(others[[i]], x)))
-        gammas <- as.numeric(names(super_mc[[i]]))
+    for(i in seq_along(super_mc)){
+        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(GT, x)))
+        gammas <- names(matching)
         if(grepl('metasc', names(super_mc)[i])){
             tag <- 'MetaCells Super'
             chr.used <- c(chr.used, 8)
@@ -122,6 +118,8 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
             chr.used <- c(chr.used, 3)
             colors.used <- c(colors.used, 'grey')
         }
+    
+    
         if(grepl('t$', names(super_mc[i]))){
             testTag <- 't-test'
         }else if(grepl('twt', names(super_mc[i]))){
@@ -135,7 +133,7 @@ plot_results_flex <- function(super_mc, others, score.type = 'match'){
         lines(gammas, matching, col = colors.used[length(colors.used)] , lwd = 1.5)
         super_mc_legend <- paste0(tag, ' (', testTag, ')')
         legends <- c(legends, 
-                     paste(super_mc_legend, names(others)[i], sep = ' vs '))
+                     paste(super_mc_legend, sprintf('Bulk (%s)', GT.type), sep = ' vs '))
     }
     if(score.type == 'match'){
         title <- sprintf('True positive rate among the top 100 DE genes against Ground truth (Bulk)', tag)

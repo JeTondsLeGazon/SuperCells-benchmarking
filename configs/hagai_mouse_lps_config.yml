@@ -66,4 +66,4 @@ default:
         computeSubSampling: F
         
     # Compute supercell (True) or load them if possible (False)
-    compute_supercell: F
+    compute_supercell: T

@@ -33,9 +33,9 @@ createSuperCellsBM <- function(data,
         split.by = split.by
     )
     super <- SC.list[[SC.type]][[as.character(gamma)]][[1]]
-    super$cell_line <- supercell_assign(clusters = data$label,
-                                        supercell_membership = super$membership,
-                                        method = "jaccard")
+    super$label <- supercell_assign(clusters = data$label,
+                                    supercell_membership = super$membership,
+                                    method = "jaccard")
     
     # Arithmetic average based on normalized (non-log) counts, then take logcount
     super$GE <- log1p(supercell_GE(expm1(data@assays$RNA@data), super$membership))

@@ -40,6 +40,20 @@ test_that("Unique membership", {
     expect_equal(length(super.exact$membership), length(unique(super.exact$membership)))
 })
 
+test_that("Same Number of memberships", {
+    expect_equal(length(super.random$membership), length(super.exact$membership))
+})
+
+# test_that("Correct membership group", {
+#     id.treat <- which(super.exact$SC.cell.annotation. == 'treat')
+#     id.ctrl <- which(super.exact$SC.cell.annotation. == 'ctrl')
+#     
+#     id.treat <- which(super.random$SC.cell.annotation. == 'treat')
+#     id.ctrl <- which(super.random$SC.cell.annotation. == 'ctrl')
+#     
+#     expect_equal(sum(super.random$), length(super.exact$membership))
+# })
+
 ge.exact <- supercell_GE(single_data@assays$RNA@data, super.exact$membership)
 colnames(ge.exact) <- super.exact$SC.cell.annotation.
 ge.random <- supercell_GE(single_data@assays$RNA@data, super.random$membership)

@@ -143,7 +143,7 @@ compute_DE_metasc <- function(data, single_data, algo){
 
 # Wrapper for SuperCell DE computation using either DESeq2, EdgeR, or t-test
 compute_supercell_DE <- function(SC, algo){
-    labels <- SC$cell_line
+    labels <- SC$label
     counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
     if(algo == 'DESeq2'){
         DE <- computeDESeq2(counts, labels)

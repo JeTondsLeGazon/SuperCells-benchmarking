@@ -189,8 +189,8 @@ if('t-test' %in% algos){
                                     split.by = split.by,
                                     SC.type = 'Exact',
                                     force_compute = as.logical(config$compute_supercell))
-        idx <- super$cell_line == 'treat'
-        idy <- super$cell_line == 'ctrl'
+        idx <- super$label == 'treat'
+        idy <- super$label == 'ctrl'
         weighted <- apply(super$GE[selected.genes, ], 1, 
                      function(row) weights::wtd.t.test(x = row[idx],
                                                        y = row[idy],

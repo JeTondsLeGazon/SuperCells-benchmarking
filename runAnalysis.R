@@ -35,6 +35,8 @@ library(tidyseurat)
 library(ggExtra)
 library(weights)
 library(zoo)
+library(SuperCell)
+library(SuperCellBM)
 
 source('src/utility.R')
 source('src/analysis.R')
@@ -176,12 +178,13 @@ for(algo in algos){
 # weighted t-test lowers all p values by a huge margin, resulting in some cases in all
 # genes being DE. Unweighted t-test was therefore selected for the analysis
 if('t-test' %in% algos){
-    selected.genes <- markers$bulk$`t-test`$gene[1:10]
-    points <- data.frame(x = c(), y = c(), gamma = c())
+    selected.genes <-  c('Vps37a', 'Maip1', 'Mitf', 'Calu', 'Xrn1', 'Dnajc1', 'Ppfibp2')
+    points_weighted <- c()
+    points_unweighted <- c()
     for(gamma in gammas[c(1,2,3,4)]){
         super <- createSuperCellsBM(sc_data, 
                                     gamma = gamma,
-                                    results_folder = results_folder,
+                                    data_folder = data_folder,
                                     arithmetic = TRUE,
                                     split.by = split.by,
                                     SC.type = 'Exact',
@@ -193,37 +196,46 @@ if('t-test' %in% algos){
                                                        y = row[idy],
                                                        weight = super$supercell_size[idx],
                                                        weighty = super$supercell_size[idy])$coefficients[['p.value']])
-        unweighted <- markers$super$`t-test`[[gamma]]$p.value[selected.genes]
-        points$x <- c(points$x, weighted)
-        points$y <- c(points$y, unweighted)
-        points$gamma <- c(points$gamma, rep(gamma, length(selected.genes)))
+        unweighted <- unlist(markers$super$`t-test`[[as.character(gamma)]][selected.genes, 'p.value'])
+        weighted[weighted == 0] <- 1
+        points_weighted <- c(points_weighted, weighted)
+        points_unweighted <- c(points_unweighted, unweighted)
     }
+    N = length(selected.genes)
+    K = length(points_weighted) / N
+    plot(NULL, xlim = c(0,300), ylim = c(0,300),
+         xlab = 'Unweighted p values',
+         ylab = 'Weighted p values',
+         main = 'Weighted vs unweighted p values')
+    colors <- c('blue', 'red', 'green', 'black')
+    legends <- c()
+    for(k in seq_len(K)){
+        points(-log10(points_unweighted[((k-1)*N+1):(k*N)]), 
+             -log10(points_weighted[((k-1)*N+1):(k*N)]),
+             pch = 16,
+             col = colors[k])
+        legends <- c(legends, sprintf('Gamma = %s', gammas[k]))
+    }
+    legend(x="topleft", 
+           legend=legends,
+           col=colors, lwd=1, lty=c(1,2), 
+           pch=16) 
 }
 
 
 # ---------------------------------------------------------
 # Fraction
 # ---------------------------------------------------------
-frac <- fractionGenes(list(single = single_markers, 
-                           super10 = super_markers$`5`, 
-                           super100 = super_markers$`100`, 
-                           bulk = bulk_markers$`DESeq2-Wald`))
+# Computes the fraction of genes associated with different cluster. It can help
+# understand how the fraction of DE genes may vary with different gammas, ie if
+# a higher gamma will produce DE genes closely related to Bulk or not.
+frac <- fractionGenes(list(single = markers$super$`t-test`$`1`, 
+                           super10 = markers$super$`t-test`$`10`, 
+                           bulk = markers$bulk$`t-test`))
 
 fracPercent <- sapply(frac, function(x) table(x)/length(x) * 100)
-fracPercent <- lapply(seq_along(fracPercent), function(i) setNames(data.frame(fracPercent[i]), 
-                                                                   c('n', names(fracPercent[i]))))
-
-mydf <- fracPercent[[1]]
-for(i in 2:length(fracPercent))
-{
-    mydf <- merge(mydf, fracPercent[[i]], by = 'n', all = T)
-}
-rownames(mydf) <- mydf$n
-mydf$n <- NULL
-mydf <- mydf %>%
-    as.matrix() %>%
-    melt()
-ggplot(data = mydf, aes(x = Var2, y = value, fill = Var1)) + 
+fracPercent <- melt(fracPercent)
+ggplot(data = fracPercent, aes(x = Var2, y = value, fill = Var1)) + 
     geom_bar(stat = 'identity', position = 'stack') +
     xlab('') +
     ylab('Percentage') +

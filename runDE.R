@@ -253,7 +253,7 @@ if(computeRandom){
                                   force_compute = force_compute)
         for(algo in algos){
             DE <- compute_supercell_DE(super, algo)
-            DEs[[algo]][[gamma]] <- DE
+            DEs[[algo]][[as.character(gamma)]] <- DE
         }
         
         
@@ -303,7 +303,7 @@ if(computeSubSampling){
         keep.data <- subset(data, subset = keep == T)
         for(algo in algos){
             DE <- compute_DE_single(keep.data, algo)
-            DEs[[algo]][[gamma]] <- DE
+            DEs[[algo]][[as.character(gamma)]] <- DE
         }
     }
     for(algo in algos){

@@ -137,6 +137,57 @@ if('t-test' %in% algos){
 }
 
 
+# This figure here shows what happens when we use the geometric mean for the computation
+# of the ge of supercells and show the evolution of the logFC
+geom_markers <- list()
+for(gamma in gammas[c(1,2,3,4)]){
+    filename_no_extension <- paste('superCells', gamma, split.by, sep = '_')
+    filename <- paste0(filename_no_extension, '.Rds')
+    ToComputeSC <- !file.exists(file.path(data_folder, 'SC', filename))
+    SC.list <- compute_supercells(
+        sc = sc_data,
+        ToComputeSC = ToComputeSC,
+        data.folder = data_folder,
+        filename = filename_no_extension,
+        gamma.seq = c(gamma),
+        n.var.genes = 1000,
+        k.knn = 5,
+        n.pc = 10,
+        approx.N = 1000,
+        fast.pca = TRUE,
+        genes.use = NULL, 
+        genes.exclude = NULL,
+        seed.seq = c(0),
+        split.by = split.by
+    )
+    super <- SC.list$Exact[[as.character(gamma)]][[1]]
+    super$label <- supercell_assign(clusters = data$label,
+                                    supercell_membership = super$membership,
+                                    method = "jaccard")
+    
+    # Geometric average as we compute average on log normalized counts
+    super$GE <- supercell_GE(sc_data@assays$RNA@data, super$membership)
+    DE <- compute_supercell_DE(super, 't-test')
+    geom_markers[[as.character(gamma)]] <- DE
+}
+p1 <- LogFcLogFcPlot(geom_markers$`1`, geom_markers$`1`) + 
+    ylab('LogFC Super Cells gamma = 1') +
+    xlab('LogFC single cells (seurat)')
+p2 <- LogFcLogFcPlot(geom_markers$`1`, geom_markers$`2`) +
+    ylab('LogFC Super Cells gamma = 2') +
+    xlab('LogFC single cells (seurat)')
+p3 <- LogFcLogFcPlot(geom_markers$`1`, geom_markers$`5`) + 
+    ylab('LogFC Super Cells gamma = 5') +
+    xlab('LogFC single cells (seurat)')
+p4 <- LogFcLogFcPlot(geom_markers$`1`, geom_markers$`10`) + 
+    ylab('LogFC Super Cells gamma = 10') +
+    xlab('LogFC single cells (seurat)')
+
+fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells (geometric mean) vs single cells', 
+                                     face = 'bold', color = 'red', size = 14))
+
+
 # ---------------------------------------------------------
 # Rank top n genes
 # ---------------------------------------------------------

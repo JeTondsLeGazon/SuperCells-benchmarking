@@ -85,9 +85,9 @@ if(!dir.exists(data_folder)){
     stop(sprintf("Cannot load data from folder %s, does not exist", data_folder))
 }
 
-single_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
-pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
-bulk_data <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+single_data <- readRDS(file = file.path(data_folder, "singleCellData.rds"))
+pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkData.rds"))
+bulk_data <- readRDS(file = file.path(data_folder, "bulkData.rds"))
 
 
 # ---------------------------------------------------------

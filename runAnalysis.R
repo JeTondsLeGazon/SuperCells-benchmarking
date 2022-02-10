@@ -75,9 +75,9 @@ if(!dir.exists(results_folder)){
 }
 
 # Data
-sc_data <- readRDS(file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
-pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkNormalized.rds"))
-bulk_data <- readRDS(file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+sc_data <- readRDS(file = file.path(data_folder, "singleCellData.rds"))
+pseudobulk_data <- readRDS(file = file.path(data_folder, "pseudoBulkData.rds"))
+bulk_data <- readRDS(file = file.path(data_folder, "bulkData.rds"))
 
 # DE markers
 markers.type <- c('bulk', 'super', 'meta', 'metasc', 'random', 'subsampling')

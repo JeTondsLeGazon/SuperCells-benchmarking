@@ -96,7 +96,7 @@ mc_folder <- file.path('data', config$intermediaryDataFile, sample_vs_condition)
 files <- list.files(mc_folder)
 files.used <- files[grep('MC', files)]
 samples_condition <- sapply(files.used, function(x) strsplit(x, '_')[[1]][1])
-single_data <- readRDS(file.path('data/', config$intermediaryDataFile, 'singleCellClusteredNormalized.rds'))
+single_data <- readRDS(file.path('data/', config$intermediaryDataFile, 'singleCellData.rds'))
 N.sc <- ncol(single_data)
 
 # Default

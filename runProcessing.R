@@ -127,12 +127,8 @@ pseudobulk_norm <- NormalizeObject(pseudobulk_data, method = normMethod)
 # compare these groups between each other
 sc_clustered_data <- sub_cluster(sc_normalized_data)
 if(compute_cluter){
-    sc_clustered_data <- reIdent(sc_clustered_data, centers)
-}else{
-    # group according to samples and conditions
-    Idents(sc_clustered_data) <- 'sample'
+    sc_clustered_data <- computeClusters(sc_clustered_data, centers)
 }
-
 
 # bulk data plot
 bdata <- NormalizeData(bulk_filtered_data) %>%
@@ -150,9 +146,6 @@ print(plot2)
 # Data saves
 # ---------------------------------------------------------
 dir.create(data_folder, showWarnings = F, recursive = T)
-saveRDS(sc_clustered_data, file = file.path(data_folder, "singleCellClusteredNormalized.rds"))
-saveRDS(sc_filtered_data, file = file.path(data_folder, "singleCellFiltered.rds"))
-saveRDS(pseudobulk_data, file = file.path(data_folder, "pseudoBulk.rds"))
-saveRDS(pseudobulk_norm, file = file.path(data_folder, "pseudoBulkNormalized.rds"))
-saveRDS(bulk_filtered_data, file = file.path(data_folder, "bulkFiltered.rds"))
-saveRDS(bdata, file = file.path(data_folder, "bulkFilteredNormalized.rds"))
+saveRDS(sc_clustered_data, file = file.path(data_folder, "singleCellData.rds"))
+saveRDS(pseudobulk_norm, file = file.path(data_folder, "pseudoBulkData.rds"))
+saveRDS(bdata, file = file.path(data_folder, "bulkData.rds"))

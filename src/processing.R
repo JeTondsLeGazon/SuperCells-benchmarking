@@ -203,27 +203,27 @@ sub_cluster <- function(singleCell_data){
 }
 
 
-# Change identification of cells based on clustering / analysis
-reIdent <- function(sc, initial_centers){
+# Create clusters based on passed centers for each new cluster
+# Depracated: clusters are not used in downstream analysis, but could be useful
+# for future functionnality
+computeClusters <- function(sc, initial_centers, clusters.labels){
    
-    clustering <- kmeans(Embeddings(sc, reduction = 'umap'), 
+    clustering <- kmeans(Embeddings(sc, reduction = 'pca'), 
                          centers = initial_centers, 
                          iter.max = 10, nstart = 1)
-    sc$label <- clustering$cluster
+    sc$clusters <- clustering$cluster
     
     sorted_sizes <- clustering$withinss
     new.idents <- c()
-    for(i in seq_along(unique(sc$label))){
+    for(i in seq_along(unique(sc$clusters))){
         new.idents <- c(new.idents, 
                         as.character(which(clustering$withinss == sorted_sizes[i])))
     }
-    new.idents.labels <- labels
+    new.idents.labels <- clusters.labels
 
     names(new.idents.labels) <- new.idents
-    sc$label <- new.idents.labels[sc$label]
-    sc <- subset(sc, subset = label %in% labels)
-    Idents(sc) <- 'label'
-    print(DimPlot(sc, reduction = 'umap'))
+    sc$clusters <- new.idents.labels[sc$clusters]
+    print(DimPlot(sc, reduction = 'pca'))
     return(sc)
 }
 

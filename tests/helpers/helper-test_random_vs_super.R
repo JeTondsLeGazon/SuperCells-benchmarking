@@ -7,7 +7,7 @@ library(SuperCellBM)
 library(SuperCell)
 
 
-single_data <- readRDS('../data/hagai_mouse_lps_data/singleCellClusteredNormalized.rds')
+single_data <- readRDS('../data/hagai_mouse_lps_data/singleCellData.rds')
 set.seed(0)
 
 super <- SuperCell::SCimplify(X = single_data@assays$RNA@data, 

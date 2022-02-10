@@ -40,8 +40,8 @@ createSuperCellsBM <- function(data,
     # Arithmetic average based on normalized (non-log) counts, then take logcount
     super$GE <- log1p(supercell_GE(expm1(data@assays$RNA@data), super$membership))
     
-    # Same as above but non-log to input into DESeq2 and EdgeR after multiplication
-    # by supercell_size
-    super$counts <- supercell_GE(expm1(data@assays$RNA@data), super$membership)
+    # Counts for DESeq2 and EdgeR (raw counts as normalization will happen in
+    # both algorithms later)
+    super$counts <- supercell_GE(data@assays$RNA@counts, super$membership)
     return(super)
 }

@@ -100,13 +100,30 @@ for(algo in algos){
         to_compare[[type_algo]] <- markers[[marker]][[algo]]
     }
 
-    for(score.method in c('auc', 'tpr', 'match')){
+    for(score.method in c('auc', 'tpr', 'tpr_100')){
         plot_results_BM(to_compare, 
                         markers$bulk[[algo]],
                         GT.type = algo,
                         score.type = score.method)
     }
 }
+
+
+# ---------------------------------------------------------
+# Volcano Plots
+# ---------------------------------------------------------
+# Create some volcano plots to observe results for different markers
+fig <- volcano_plot(markers$bulk[[algos[1]]])
+title <- sprintf('Volcano Plot of bulk for %s', algos[1])
+fig <- annotate_figure(fig, top = text_grob(title, face = 'bold', color = 'red', 
+                                     size = 14))
+print(fig)
+
+fig <- volcano_plot(markers$super[[algos[1]]][[as.character(gammas[1])]])
+title <- sprintf('Volcano Plot of SuperCell for %s at gamma = %s', algos[1], gammas[1])
+fig <- annotate_figure(fig, top = text_grob(title, face = 'bold', color = 'red', 
+                                            size = 14))
+print(fig)
 
 
 # ---------------------------------------------------------
@@ -132,8 +149,9 @@ if('t-test' %in% algos){
         xlab('LogFC single cells (seurat)')
     
     fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-    annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs single cells', 
+    fig <- annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells vs single cells', 
                                          face = 'bold', color = 'red', size = 14))
+    print(fig)
 }
 
 
@@ -161,7 +179,7 @@ for(gamma in gammas[c(1,2,3,4)]){
         split.by = split.by
     )
     super <- SC.list$Exact[[as.character(gamma)]][[1]]
-    super$label <- supercell_assign(clusters = data$label,
+    super$label <- supercell_assign(clusters = sc_data$label,
                                     supercell_membership = super$membership,
                                     method = "jaccard")
     
@@ -184,8 +202,9 @@ p4 <- LogFcLogFcPlot(geom_markers$`1`, geom_markers$`10`) +
     xlab('LogFC single cells (seurat)')
 
 fig <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
-annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells (geometric mean) vs single cells', 
+fig <- annotate_figure(fig, top = text_grob('LogFC vs LogFC graph for SuperCells (geometric mean) vs single cells', 
                                      face = 'bold', color = 'red', size = 14))
+print(fig)
 
 
 # ---------------------------------------------------------
@@ -229,6 +248,7 @@ for(algo in algos){
 # weighted t-test lowers all p values by a huge margin, resulting in some cases in all
 # genes being DE. Unweighted t-test was therefore selected for the analysis
 if('t-test' %in% algos){
+    # Random genes that do not have p-value = 0 for both weighted and unweighted
     selected.genes <-  c('Vps37a', 'Maip1', 'Mitf', 'Calu', 'Xrn1', 'Dnajc1', 'Ppfibp2')
     points_weighted <- c()
     points_unweighted <- c()

@@ -4,17 +4,6 @@
 
 
 
-# Computes the match between the topn genes between two sets, normalized [0, 1]
-gene_match <- function(set1, set2, topn = 100){
-    
-    if(topn > min(length(set1), length(set2))){
-        topn <- min(length(set1), length(set2))
-    }
-    
-    sum(!is.na(match(set1[1:topn], set2[1:topn]))) / topn
-}
-
-
 # Compute concordance score between super cells DEA at different graining levels and another DEA
 compute_score <- function(DEAs,  # list containing the results of DEA from supercells
                           GT,  # Ground truth for comparison with supercells
@@ -50,7 +39,7 @@ find_markers <- function(ge, labels){
         data.frame()
     grp1 <- rowMeans(tmp[, treat_grp])
     grp2 <- rowMeans(tmp[, ctrl_grp])
-    logFCs <- log1p(grp1) - log1p(grp2)  # must do like this otherwise may / 0
+    logFCs <- log2(grp1 + 1) - log2(grp2 + 1)  # must do like this otherwise may / 0
     
     pvals <- apply(ge, 1, function(x) t.test(x[treat_grp], x[ctrl_grp])$p.value)
     padj <- p.adjust(pvals, 'BH', nrow(ge))
@@ -75,7 +64,7 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
 
 
 # Plots for benchmarking purpose following special coloring and character plot
-plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'match'){
+plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'tpr_100'){
     plot(NULL, 
          ylim=c(0,1), 
          xlim=c(1, 100), 
@@ -84,12 +73,7 @@ plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'match'){
          log = 'x')
     
     # score to use
-    score_func <- switch(score.type, 'match' = tpr, 'auc' = auc, 'tpr' = tpr)
-    if(score.type == 'match'){
-        super_mc <- lapply(super_mc, function(x) lapply(x, function(xx) xx[1:100, ]))
-        GT <- GT[1:100, ]
-    }
-    
+    score_func <- switch(score.type, 'tpr_100' = tpr_100, 'auc' = auc, 'tpr' = tpr)
 
     chr.used <- c()
     colors.used <- c()
@@ -135,7 +119,7 @@ plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'match'){
         legends <- c(legends, 
                      paste(super_mc_legend, sprintf('Bulk (%s)', GT.type), sep = ' vs '))
     }
-    if(score.type == 'match'){
+    if(score.type == 'tpr_100'){
         title <- sprintf('True positive rate among the top 100 DE genes against Ground truth (Bulk)', tag)
     }else if (score.type == 'auc'){
         title <- sprintf('AUROC of DE genes against Ground truth (Bulk)', tag)
@@ -153,4 +137,81 @@ plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'match'){
            pch = chr.used)
     title(title)
     grid()
+}
+
+
+# Calculate fraction of Genes belonging to different groups. Used to create figure
+# in runAnalysis
+fractionGenes <- function(DEs){
+    lapply(DEs, function(DE) sapply(DE$gene, function(x) fractionGene(x, DEs)))
+}
+
+fractionGene <- function(gene, DEs){
+    res <- sapply(DEs, function(x) gene %in% x$gene)
+    paste(sort(names(DEs)[res]), collapse = '-')
+}
+
+
+
+
+# Shows rank of given genes between a set of markers and superCells like structure markers
+rank_plot <- function(concerned_genes, test_markers, super_markers){
+    
+    rank1 <- match(concerned_genes, test_markers$gene)
+    rank2 <- match(concerned_genes, super_markers$`1`$gene)
+    rank3 <- match(concerned_genes, super_markers$`5`$gene)
+    rank4 <- match(concerned_genes, super_markers$`50`$gene)
+    rank5 <- match(concerned_genes, super_markers$`1000`$gene)
+    
+    subplot <- function(x, y, g){
+        qplot(x, 
+              y, 
+              xlab = 'Single-cell (Seurat)', 
+              ylab = 'Super-cells') +
+            geom_abline(intercept = 0, slope = 1, color = 'red', size = 1) +
+            ggtitle(paste0('Top 100 DE genes comparison at gamma = ', g)) +
+            xlim(c(0, 100)) +
+            ylim(c(0, 100))
+    }
+    p1 <- subplot(rank1, rank2, 1)
+    p2 <- subplot(rank1, rank3, 5)
+    p3 <- subplot(rank1, rank4, 50)
+    p4 <- subplot(rank1, rank5, 1000)
+    ggarrange(p1, p2, p3, p4)
+}
+
+
+# Volcano plot to show DE genes according to p value and logFC
+volcano_plot <- function(stats, 
+                         logfc.thres = 1, 
+                         thres.annotated.fc = NULL, 
+                         thres.annotated.p = NULL,
+                         top.genes = 15){
+    stats <- stats[!is.na(stats$adj.p.value), ]
+    
+    # In case of p value to 0, put them at the minimum
+    if(min(stats$adj.p.value) == 0){
+        stats$adj.p.value[stats$adj.p.value == 0] <- min(stats$adj.p.value[stats$adj.p.value != 0]) / 10
+    }
+    
+    
+    
+    p <- ggplot(data = stats, aes(x = logFC, y = -log10(adj.p.value), color = adj.p.value < 0.05 & abs(logFC) > logfc.thres, label = gene)) +
+        geom_point() +
+        geom_vline(xintercept = logfc.thres, linetype = 'dashed') +
+        geom_vline(xintercept = -logfc.thres, linetype = 'dashed') +
+        geom_hline(yintercept = -log10(0.05), linetype = 'dashed') +
+        theme(legend.position = 'none')
+    
+    # Use top.genes instead of thresholds
+    if (is.null(thres.annotated.fc) & is.null(thres.annotated.p)){
+        sub.stats <- stats %>%
+            subset(logFC > 0) %>%
+            slice_head(n = top.genes)
+        thres.annotated.fc <- min(sub.stats$logFC)
+        thres.annotated.p <- max(sub.stats$adj.p.value)
+    }
+    
+    p + geom_text_repel(aes(label=ifelse(logFC >= thres.annotated.fc & adj.p.value <= thres.annotated.p & logFC > logfc.thres, as.character(gene),'')), 
+                        box.padding = 0.5, color = 'black', max.overlaps = Inf)
 }

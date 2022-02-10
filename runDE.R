@@ -165,7 +165,6 @@ if(computeSuper){
 # ---------------------------------------------------------
 # DE single cells
 # ---------------------------------------------------------
-# TODO: include seurat computation as algorithm
 if(computeSingle){
     message('Computing Single cells DE')
     for(algo in algos){

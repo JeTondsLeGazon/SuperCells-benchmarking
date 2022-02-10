@@ -118,14 +118,12 @@ compute_DE_metasc <- function(data, single_data, algo){
     # Metacell drops some cells along the way
     cells.use <- colnames(single_data)[colnames(single_data) %in% names(data$membership)]
     
-    # Input groups of Metacell into SuperCell GE computation
-    ge <- supercell_GE(ge = single_data@assays$RNA@data[, cells.use],
-                       groups =  data$membership[cells.use])
-    
     # Use normalized counts (exm1(ge)) as input to compute normalized average counts
-    counts_avg <- supercell_GE(ge = expm1(single_data@assays$RNA@data[, cells.use]),
+    counts <- supercell_GE(ge = single_data@assays$RNA@counts[, cells.use],
                            groups =  data$membership[cells.use])
-    counts <- floor(sweep(counts_avg, 2, data$size, '*'))
+    
+    ge <- log1p(supercell_GE(ge = expm1(single_data@assays$RNA@data[, cells.use]),
+                           groups =  data$membership[cells.use]))
     labels <- unlist(strsplit(data$sample, '[0-9]'))  # in case of split.by = sample
     
     if(algo == 'DESeq2'){
@@ -144,10 +142,11 @@ compute_DE_metasc <- function(data, single_data, algo){
 # Wrapper for SuperCell DE computation using either DESeq2, EdgeR, or t-test
 compute_supercell_DE <- function(SC, algo){
     labels <- SC$label
-    counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
     if(algo == 'DESeq2'){
+        counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
         DE <- computeDESeq2(counts, labels)
     }else if(algo == 'EdgeR'){
+        counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
         DE <- computeEdgeR(counts, labels)
     }else if(algo == 't-test'){
         DE <- find_markers(SC$GE, labels)

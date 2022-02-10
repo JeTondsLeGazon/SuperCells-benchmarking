@@ -37,13 +37,13 @@ singleCell_qc <- function(sc_data){
     print(p)
     
     # Check quality with mitochondrial genes
-    sc_data <- PercentageFeatureSet(sc_data, "^MT-", col.name = "percent_mito")
+    sc_data <- PercentageFeatureSet(sc_data, "^[Mm][Tt]-", col.name = "percent_mito")
     
     # Check quality with ribosomal protein (could also indicate dead cells)
-    sc_data <- PercentageFeatureSet(sc_data, "^RP[SL]", col.name = "percent_ribo")
+    sc_data <- PercentageFeatureSet(sc_data, "^[Rr][Pp][SsLl]", col.name = "percent_ribo")
     
     # Check quality with hemoglobin (blood contamination)
-    sc_data <- PercentageFeatureSet(sc_data, "^HB[^(P)]", col.name = "percent_hb")
+    sc_data <- PercentageFeatureSet(sc_data, "^[Hh][Bb][^Pp]", col.name = "percent_hb")
     
     # Counts per cell
     p <- tidyseurat::ggplot(data = sc_data, aes(x = nCount_RNA, color = label, fill = label)) +

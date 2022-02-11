@@ -121,7 +121,8 @@ compute_DE_metasc <- function(data, single_data, algo){
     # Use normalized counts (exm1(ge)) as input to compute normalized average counts
     counts <- supercell_GE(ge = single_data@assays$RNA@counts[, cells.use],
                            groups =  data$membership[cells.use])
-    
+    counts <- floor(sweep(counts, 2, data$size, '*'))
+        
     ge <- log1p(supercell_GE(ge = expm1(single_data@assays$RNA@data[, cells.use]),
                            groups =  data$membership[cells.use]))
     labels <- unlist(strsplit(data$sample, '[0-9]'))  # in case of split.by = sample

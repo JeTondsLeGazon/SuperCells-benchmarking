@@ -1,7 +1,8 @@
 # 8th November 2021
 
 # Utility functions for the supercells DE analysis benchmark
-
+ 
+library(pROC)
 
 
 # Creates the sample according to the condition (treatment vs control) and the
@@ -54,25 +55,14 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
 }
 
 
-# Computes area under the roc curve from two statistics (gt and other)
+# Uses function auc from pROC to compute the area under the curve between two
+# sets of markers
 auc <- function(gt, other){
-    thresholds <- c(1-10, 1-5, 1-3, 0.01, 0.05, 0.1, 0.5, 1)
-    pos <- gt %>% subset(adj.p.value < 0.05)
-    neg <- gt %>% subset(adj.p.value >= 0.05)
-    points <- c(1, 0)
-    for(thres in thresholds){
-        tp <- sum(!is.na(match(pos$gene, subset(other, other$adj.p.value < thres)$gene)))
-        tn <- sum(!is.na(match(neg$gene, subset(other, other$adj.p.value >= thres)$gene)))
-        fp <- sum(!is.na(match(neg$gene, subset(other, other$adj.p.value < thres)$gene)))
-        fn <- sum(!is.na(match(pos$gene, subset(other, other$adj.p.value >= thres)$gene)))
-        sensi <- tp / (tp + fn)
-        speci <- tn / (tn + fp)
-        points <- c(points, c(speci, sensi))
-    }
-    points <- data.frame(matrix(points, ncol = 2, byrow = T))
-    colnames(points) <- c('specificity', 'sensitivity')
-    auc <- sum(diff((1 - points$specificity))*rollmean(points$sensitivity,2))
-    return(auc)
+    positives <- subset(gt, adj.p.value < 0.05)$gene
+    labels <- rep(F, nrow(other))
+    labels[which(other$gene %in% positives)] <- T
+    result <- pROC::auc(labels, other$adj.p.value)
+    return(as.numeric(result))
 }
 
 

@@ -145,11 +145,15 @@ NormalizeObject <- function(data, method = 'DESeq2', scaling.method = 'manual'){
 
 # Quality control and processing of bulk RNA data but without normalization due
 # to the use of DESeq2
+# Uses Count per Million reads (CPM) to apply threshold
 bulk_qc_and_filtering <- function(dataset){
     
+    # CPM
+    CPM <- apply(dataset@assays$RNA@counts, 2, function(x) x / sum(x) * 1e6)
+    
     # Detection based filtering
-    transcript_level <- 50
-    dropped_genes <- rowSums(GetAssayData(dataset)) < transcript_level
+    transcript_level.cpm <- 2
+    dropped_genes <- rowSums(CPM) < transcript_level
     cat(sprintf('Dropped %s genes after detection based filtering\n', sum(dropped_genes)))
     dataset <- subset(dataset, features = rownames(dataset)[!dropped_genes])
     return(dataset)

@@ -17,11 +17,11 @@ Here are some results obtained with this pipeline for the dataset hagai 2018 mou
 
 - True positive rate between different markers and bulk (t-test) for the top N = 100 genes
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR top 100 t-test.png)
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_top_100_t-test.png)
 
 - True positive rate between different markers and bulk (t-test) for the top N = 1982 genes, ie all statistically significant genes with p-value < 0.05 in the bulk
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR t-test (N=1982).png)
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_t-test_(N=1982).png)
 
 
 ## Folder structure

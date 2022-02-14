@@ -28,29 +28,23 @@ The datasets used were found in a meta-anaysis on the false discoveries of singl
 
 Here are some results obtained with this pipeline for the dataset hagai 2018 mouse:
 
-- Area under the curve score for different types of markers vs bulk (t-test)
+- Area under the curve score for different types of markers vs bulk (left: t-test, right: DESeq2)
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/AUC_t-test.png)
+  <img src="figs/AUC_t-test.png" alt="drawing" width="450"/><img src="figs/AUC_DESeq2.png" alt="drawing" width="450"/>
 
-- True positive rate between different markers and bulk (t-test) for the top N = 100 genes
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR100_t-test.png)
 
-- True positive rate between different markers and bulk (t-test) for the top N = 1982 genes, ie all statistically significant genes with p-value < 0.05 in the bulk
+- True positive rate between different markers and bulk for the top N = 100 genes (left: t-test, right: DESeq2)
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_t-test.png)
+  <img src="figs/TPR100_t-test.png" alt="drawing" width="450"/><img src="figs/TPR100_DESeq2.png" alt="drawing" width="450"/>
 
-- Now the same figures but with the differential expression computation via DESeq2, here for the AUC
+  
 
-![Area under the curve score for different types of markers vs bulk (DESeq2)](figs/AUC_DESeq2.png)
+- True positive rate between different markers and bulk for all statistically significant genes with p-value < 0.05 in the bulk (left: t-test with N = 1982, right: DESeq2 with N = 4440)
 
-- The true positive rate for the top 100 genes with DESeq2
+<img src="figs/TPR_t-test.png" alt="drawing" width="450"/><img src="figs/TPR_DESeq2.png" alt="drawing" width="450"/>
 
-![Area under the curve score for different types of markers vs bulk (DESeq2)](figs/TPR100_DESeq2.png)
 
-- The true positive rate for all DE genes in the bulk (N = 4440) for DESeq2
-
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_DESeq2.png)
 
 
 

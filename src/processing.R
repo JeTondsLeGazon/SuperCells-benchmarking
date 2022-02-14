@@ -160,17 +160,6 @@ bulk_qc_and_filtering <- function(dataset){
 }
 
 
-
-# Filter cells based on doublet scores
-doubletFinder <- function(data,  # seurat object containing the data
-                          threshold = 2.5)  # threshold to be considered doublet
-{
-    scores <- computeDoubletDensity(GetAssayData(data))
-    return(colnames(data)[scores > threshold])
-    
-}
-
-
 # Clustering into subgroups because of immune cells sub-population
 sub_cluster <- function(singleCell_data){
     sc <- singleCell_data %>%

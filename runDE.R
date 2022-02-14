@@ -307,7 +307,7 @@ if(computeSubSampling){
     }
     for(algo in algos){
         saveMarkers(markers = DEs[[algo]], 
-                    algo = 't-test',
+                    algo = algo,
                     split.by = split.by,
                     base.path = results_folder,
                     kind = 'subsampling')

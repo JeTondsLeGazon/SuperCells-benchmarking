@@ -41,11 +41,101 @@ library(ggplot2)
 library(weights)
 library(zoo)
 library(metacell)
-library(DropletUtils)
+library(SuperCellBM)
 
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
+
+
+# ---------------------------------------------------------
+# Functions
+# ---------------------------------------------------------
+# As metacells are not saved within each group (sample or condition), we need
+# to find common genes for the same gamma
+find_common_genes <- function(files, mc_folder, samples, mc.type){
+    genes.per.gamma <- list()
+    for(file in files){
+        data <- readRDS(file.path(mc_folder, file))[[mc.type]]
+        gammas <- as.numeric(names(data))
+        if(length(genes.per.gamma) == 0){
+            genes.per.gamma <- sapply(seq_along(gammas), function(x) list())
+        }
+        for(i in seq_along(gammas)){
+            ge <- data[[i]][[1]]$mc_info$mc@mc_fp
+            
+            
+            #find intersection of all genes
+            if(length(genes.per.gamma[[i]]) == 0){
+                genes.per.gamma[[i]] <- rownames(ge)
+            }else{
+                genes.per.gamma[[i]] <- intersect(genes.per.gamma[[i]],
+                                                  rownames(ge))
+            }
+        }
+    }
+    return(genes.per.gamma)
+}
+
+# reorder metacells in a better data structure for the Differential expression
+create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_data){
+    MC <- sapply(seq_len(20), function(x) list())
+    MC.mcClass <- sapply(seq_len(20), function(x) list())
+    
+    # Rearrange data
+    for(samp in samples){
+        id <- grep(samp, files)
+        data <- readRDS(file.path(mc_folder, files[id]))[[mc.type]]
+        gammas <- as.numeric(names(data))
+        for(i in seq_along(gammas)){
+            keep.genes <- genes[[i]]
+            ge <- data[[i]][[1]]$mc_info$mc@mc_fp[keep.genes, ]
+            e_gc <- data[[i]][[1]]$mc_info$mc@e_gc[keep.genes, ]
+            if(length(MC[[i]]) ==  0){
+                MC[[i]]$ge <- ge
+                MC[[i]]$sample <- rep(samp, ncol(ge))
+                MC[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
+                MC[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
+                MC.mcClass[[i]] <- data[[i]][[1]]$mc_info$mc
+            }else{
+                MC[[i]]$ge <- cbind(MC[[i]]$ge,
+                                    ge)
+                MC[[i]]$sample <- c(MC[[i]]$sample,
+                                    rep(samp, ncol(ge)))
+                MC[[i]]$size <- c(MC[[i]]$size, 
+                                  table(data[[i]][[1]]$mc_info$mc@mc))
+                names(MC[[i]]$size) <- seq_along(MC[[i]]$size)
+                MC[[i]]$membership <- c(MC[[i]]$membership,
+                                        data[[i]][[1]]$mc_info$mc@mc + max(MC[[i]]$membership))
+                
+                MC.mcClass[[i]]@mc <- c(MC.mcClass[[i]]@mc,
+                                        
+                                        data[[i]][[1]]$mc_info$mc@mc + max(MC.mcClass[[i]]@mc))
+            }
+        }
+    }
+    MC <- MC[sapply(MC, function(x) length(x) > 0)]
+    
+    # Rename with gammas
+    for(i in seq_along(MC)){
+        ge <- MC[[i]]$ge
+        new.colnames <- paste(MC[[i]]$sample, seq_len(ncol(ge)), sep = '_')
+        colnames(MC[[i]]$ge) <- new.colnames
+        MC[[i]]$gamma <- round(N.sc / ncol(ge))
+        
+        used.cells <- names(MC.mcClass[[i]]@mc)
+        used.cells.idx <- which(used.cells %in% colnames(single_data@assays$RNA@counts))
+        used.cells <- used.cells[used.cells.idx]
+        MC.mcClass[[i]]@mc <- MC.mcClass[[i]]@mc[used.cells]
+        MC.mcClass[[i]] <- mc_compute_fp(mc = MC.mcClass[[i]],
+                                         us = single_data@assays$RNA@counts[, used.cells])
+        
+        MC[[i]]$mc_fp_updated <- MC.mcClass[[i]] 
+    }
+    
+    names(MC) <- sapply(MC, function(x) x$gamma)
+    return(MC)
+}
 
 
 # ---------------------------------------------------------
@@ -58,67 +148,76 @@ data_folder <- file.path("data", config$intermediaryDataFile)
 results_folder <- file.path("data", config$resultsFile)
 dir.create(results_folder, showWarnings = F, recursive = T)
 
+split.by <- config$splitBy
+data_folder <- file.path("data", config$intermediaryDataFile)
+
 
 # ---------------------------------------------------------
 # Data loadings
 # ---------------------------------------------------------
-mydata<- readRDS(file = file.path(data_folder, "singleCellFiltered.rds"))
-samples <- unique(mydata$sample)
+sc_data <- readRDS(file = file.path(data_folder, "singleCellData.rds"))
+groups <- unique(sc_data[[split.by]])
 
-# data should be in 10x format for metacell to work
-for(sample in samples){
-  path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
-  write10xCounts(path = path_per_sample, 
-                 x = GetAssayData(mydata)[, which(mydata$sample == sample)], 
-                 overwrite = T)
-}
 
-rm(mydata)
-print('OK saving')
 # ---------------------------------------------------------
-# Metacells creation
+# Metacell creation
 # ---------------------------------------------------------
-# Metacells created per sample to be consistant with supercells annotation
-# Pipeline available on Metacell vignettes
-for(sample in samples){
-  path_per_sample <- file.path(data_folder, paste0('sc10x', sample))
-  scdb_init(path_per_sample, force_reinit=T)
-  mcell_import_scmat_10x("meta", base_dir = path_per_sample)
-  
-  mcell_add_gene_stat(gstat_id="meta_gs", mat_id="meta", force=T)
-  mcell_gset_filter_cov(gset_id = "meta_feats", gstat_id="meta_gs", T_tot=100, T_top3=10)
-  
-  sizes <- c(1, 10, 20, 30, 50)
-  sample_mc <- list()
-  mc_ge <- list()
-  for(size in sizes){
+filename <- paste('superCells', split.by, sep = '_')
+SC.list <- compute_supercells(
+    sc.GE = sc_data@assays$RNA@data,
+    ToComputeSC = T,
+    data.folder = data_folder,
+    filename = filename,
+    gamma.seq = c(1, 2, 5),
+    n.var.genes = 1000,
+    k.knn = 5,
+    n.pc = 10,
+    approx.N = 1000,
+    fast.pca = TRUE,
+    genes.use = NULL, 
+    genes.exclude = NULL,
+    seed.seq = 0
+)
+
+
+SC.mc <- compute_supercells_metacells_with_min_mc_size(
+    sc.counts = sc_data@assays$RNA@counts,
+    gamma.seq = .gamma.seq,
+    SC.list = SC.list,
+    min_mc_size_seq = min_mc_size_seq,
+    proj.name = proj.name,
+    ToComputeSC = T, 
+    mc.k.knn = 100,
+    T_vm_def = 0.08,
+    MC.folder = file.path(data_folder, 'MC'), 
+    MC_gene_settings = c('Metacell_default', 'Metacell_SC_like')
+)
+
+
+# ---------------------------------------------------------
+# Metacell cleaning and reshaping
+# ---------------------------------------------------------
+for(mc.type in c('Metacell_default', 'Metacell_SC-like')){
+    sample_vs_condition <- paste('mc', split.by, sep = '_')
+    mc_folder <- file.path(results_folder, sample_vs_condition)
+    N.sc <- ncol(sc_data)
     
-    mcell_add_cgraph_from_mat_bknn(mat_id="meta", 
-                                   gset_id = "meta_feats", 
-                                   graph_id="meta_graph",
-                                   K=100,
-                                   dsamp=T)
-    mcell_coclust_from_graph_resamp(
-      coc_id="meta_coc500", 
-      graph_id="meta_graph",
-      min_mc_size=20, 
-      p_resamp=0.75, n_resamp=500)
+    # Default
+    genes <- find_common_genes(files = files.used,
+                               mc_folder = mc_folder,
+                               samples = samples_condition,
+                               mc.type = mc.type)
     
-    mcell_mc_from_coclust_balanced(
-      coc_id="meta_coc500", 
-      mat_id= "meta",
-      mc_id= "meta_mc", 
-      K=30, min_mc_size=size, alpha=2)
-    
-    mat <- scdb_mc("meta_mc")
-    # Save metacell composition (cell clustering)
-    sample_mc[[size]] <- mat@mc
-    # save metacell gene expression matrix
-    mc_ge[[size]] <- mat@mc_fp
-    print(length(mat@mc))
-    rm('mat')
-  }
-  # Save at each sample as process is long and makes Rstudio crash often
-  saveRDS(sample_mc, file.path(results_folder, sprintf("mcComposition%s.rds", sample)))
-  saveRDS(mc_ge, file.path(results_folder, sprintf("mcGE%s.rds", sample)))
+    MC <- create_metacell(genes = genes,
+                          samples = samples_condition,
+                          files = files.used,
+                          mc_folder = mc_folder,
+                          mc.type = mc.type,
+                          single_data = sc_data)
+    if(mc.type == 'Metacell_default'){
+        filename <- 'mc_default.rds'
+    }else{
+        filename <- 'mc_SC_like.rds'
+    }
+    saveRDS(MC, file.path(mc_folder, filename))
 }

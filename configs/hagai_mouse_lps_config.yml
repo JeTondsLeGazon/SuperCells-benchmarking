@@ -52,16 +52,16 @@ default:
     gammas: !expr c(1, 2, 5, 10, 50, 100)
     
     # algorithms to use for the DE analysis
-    algos: !expr c('t-test')  # among 'DESeq2', 't-test', 'EdgeR'
+    algos: !expr c('t-test', 'DESeq2', 'EdgeR')  # among 'DESeq2', 't-test', 'EdgeR'
     
     # Which DEs should be (re)computed
     DE:
         computeSingle: F
         computeSuper: T
         computePseudo: F
-        computeBulk: F
-        computeMeta: F
-        computeMetaSC: F
+        computeBulk: T
+        computeMeta: T
+        computeMetaSC: T
         computeRandom: T
         computeSubSampling: T
         

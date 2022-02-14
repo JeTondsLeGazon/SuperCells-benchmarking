@@ -7,13 +7,23 @@ The datasets used were found in a meta-anaysis on the false discoveries of singl
 
 
 
-## Results
+
+
+## Table of contents
+
+```
+1. [Results](#results)
+```
+
+
+
+## Results <a name="results"/></a>
 
 Here are some results obtained with this pipeline for the dataset hagai 2018 mouse:
 
 - Area under the curve score for different types of markers vs bulk (t-test)
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/AUCt-test.png)
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/AUC_t-test.png)
 
 - True positive rate between different markers and bulk (t-test) for the top N = 100 genes
 

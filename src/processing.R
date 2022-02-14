@@ -153,7 +153,7 @@ bulk_qc_and_filtering <- function(dataset){
     
     # Detection based filtering
     transcript_level.cpm <- 2
-    dropped_genes <- rowSums(CPM) < transcript_level
+    dropped_genes <- rowSums(CPM) < transcript_level.cpm
     cat(sprintf('Dropped %s genes after detection based filtering\n', sum(dropped_genes)))
     dataset <- subset(dataset, features = rownames(dataset)[!dropped_genes])
     return(dataset)

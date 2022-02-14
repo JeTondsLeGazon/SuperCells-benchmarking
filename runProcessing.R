@@ -7,7 +7,7 @@
 # Header
 # ---------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-
+args <- "configs/hagai_mouse_lps_config.yml"
 if (length(args) == 0){
     stop('You must provide a configuration file', call. = FALSE)
 }

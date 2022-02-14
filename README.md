@@ -7,17 +7,24 @@ The datasets used were found in a meta-anaysis on the false discoveries of singl
 
 
 
-
-
 ## Table of contents
 
-```
 1. [Results](#results)
-```
+2. [Folder structure](#structure)
+3. [Dependencies](#dependencies)
+4. [Data](#data)
+5. [Files](#files)
+   1. [Processing](#processing)
+   2. [Metacells](#metacell)
+   3. [Differential expression](#DE)
+   4. [Analysis](#analysis)
+6. [Parameters](#parameters)
+
+<a name="results"/></a>
 
 
 
-## Results <a name="results"/></a>
+## Results 
 
 Here are some results obtained with this pipeline for the dataset hagai 2018 mouse:
 
@@ -27,14 +34,30 @@ Here are some results obtained with this pipeline for the dataset hagai 2018 mou
 
 - True positive rate between different markers and bulk (t-test) for the top N = 100 genes
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_top_100_t-test.png)
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR100_t-test.png)
 
 - True positive rate between different markers and bulk (t-test) for the top N = 1982 genes, ie all statistically significant genes with p-value < 0.05 in the bulk
 
-![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_t-test_(N=1982).png)
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_t-test.png)
+
+- Now the same figures but with the differential expression computation via DESeq2, here for the AUC
+
+![Area under the curve score for different types of markers vs bulk (DESeq2)](figs/AUC_DESeq2.png)
+
+- The true positive rate for the top 100 genes with DESeq2
+
+![Area under the curve score for different types of markers vs bulk (DESeq2)](figs/TPR100_DESeq2.png)
+
+- The true positive rate for all DE genes in the bulk (N = 4440) for DESeq2
+
+![Area under the curve score for different types of markers vs bulk (t-test)](figs/TPR_DESeq2.png)
 
 
-## Folder structure
+
+<a name="structure"/></a>
+
+
+## Folder structure 
 
 .  
 |----- data  
@@ -45,7 +68,10 @@ Here are some results obtained with this pipeline for the dataset hagai 2018 mou
 
 
 
+<a name="dependencies"/></a>
+
 ## Dependencies
+
 Please find all dependencies in the DESCRIPTION file. Additionally, you will need to install these packages:
 
 - Package [SuperCells](https://github.com/GfellerLab/SuperCell/tree/dev) from Gfeller lab, **use the dev version** (remotes::install_github("GfellerLab/SuperCell**@dev**"))
@@ -54,7 +80,10 @@ Please find all dependencies in the DESCRIPTION file. Additionally, you will nee
 
 - Package (Metacell)[https://tanaylab.github.io/metacell/] from Tanay lab, **which runs only on Linux or Mac**.
 
-  
+
+
+
+<a name="data"/></a>
 
 
 ## Data
@@ -75,7 +104,10 @@ All datasets come for four different studies with published papers:
 - [Reyfman et al., 2019: Single-cell transcriptomic analysis of human lung provides insights into the pathobiology of pulmonary fibrosis](https://www.atsjournals.org/doi/10.1164/rccm.201712-2410OC)
 
 
-## Run files
+
+<a name="files"/></a>
+
+## Files
 
 The pipeline is runnable via the run files: 'runProcessing.R', 'runMetacell.R', 'runDE.R' and 'runAnalysis.R', respectively.
 
@@ -101,19 +133,25 @@ args <- "myConfigFilePath"
 ```
 with what is needed accordingly.
 
+<a name="processing"/></a>
+
 ### runProcessing.R
 This load the raw data and apply all the processing on bulk and single-cell data. It is advised to choose the filtering parameters according to the quality control figures obtained after the first run, then re-run with appropriate parameters.
 
 All processed data will be stored in the data folder, under the corresponding dataset used folder. Note that data are saved in a non-normalized format and a normalized one, but both can be accessed with clustered/normalized files as Seurat conserves both. Use *data@assays$RNA@data* for normalize data and *data@assays$RNA@counts* for counts.
 
+<a name="metacell"/></a>
 
 ### runMetacell.R
+
 This creates the Metacells at different graining levels and store the footprint matrix and cell memberships.
 Careful, the Metacell package uses heavy computation functions, this could take a while to run.
 
 As mentioned above, this can only run on Linux or Mac. For Windows users, you can download a virtual machine along an .iso image and run this script on it.
 
 The final metacells object will be stored under data/datasetname/mc
+
+<a name="DE"/></a>
 
 
 ### runDE.R
@@ -132,7 +170,7 @@ All DE results will be saved under data/dataset_name_results. The GT folder (for
 
 Additionally, this will compute and save SuperCells under data/dataset_folder_data/SC
 
-
+<a name="analysis"/></a>
 
 ### runAnalysis.R
 
@@ -148,6 +186,8 @@ After the differentially expressed markers have been computed in runDE, it is ti
 Of course feel free to modify them and create new analyses!
 
 
+
+<a name="parameters"/></a>
 
 ## Configs parameters
 

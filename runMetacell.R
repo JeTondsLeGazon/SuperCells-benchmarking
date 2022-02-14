@@ -42,6 +42,7 @@ library(weights)
 library(zoo)
 library(metacell)
 library(SuperCellBM)
+library(SuperCellBM)
 
 source('src/utility.R')
 source('src/supercells.R')
@@ -53,10 +54,10 @@ source('src/analysis.R')
 # ---------------------------------------------------------
 # As metacells are not saved within each group (sample or condition), we need
 # to find common genes for the same gamma
-find_common_genes <- function(files, mc_folder, samples, mc.type){
+find_common_genes <- function(mc, mc.type){
     genes.per.gamma <- list()
-    for(file in files){
-        data <- readRDS(file.path(mc_folder, file))[[mc.type]]
+    for(group in mc){
+        data <- group[[mc.type]]
         gammas <- as.numeric(names(data))
         if(length(genes.per.gamma) == 0){
             genes.per.gamma <- sapply(seq_along(gammas), function(x) list())
@@ -78,14 +79,13 @@ find_common_genes <- function(files, mc_folder, samples, mc.type){
 }
 
 # reorder metacells in a better data structure for the Differential expression
-create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_data){
+create_metacell <- function(genes, groups, mc, mc.type, single_data){
     MC <- sapply(seq_len(20), function(x) list())
     MC.mcClass <- sapply(seq_len(20), function(x) list())
     
     # Rearrange data
-    for(samp in samples){
-        id <- grep(samp, files)
-        data <- readRDS(file.path(mc_folder, files[id]))[[mc.type]]
+    for(group in groups){
+        data <- mc[[group]][[mc.type]]
         gammas <- as.numeric(names(data))
         for(i in seq_along(gammas)){
             keep.genes <- genes[[i]]
@@ -93,7 +93,7 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_da
             e_gc <- data[[i]][[1]]$mc_info$mc@e_gc[keep.genes, ]
             if(length(MC[[i]]) ==  0){
                 MC[[i]]$ge <- ge
-                MC[[i]]$sample <- rep(samp, ncol(ge))
+                MC[[i]]$sample <- rep(group, ncol(ge))
                 MC[[i]]$size <- table(data[[i]][[1]]$mc_info$mc@mc)
                 MC[[i]]$membership <- data[[i]][[1]]$mc_info$mc@mc
                 MC.mcClass[[i]] <- data[[i]][[1]]$mc_info$mc
@@ -101,7 +101,7 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_da
                 MC[[i]]$ge <- cbind(MC[[i]]$ge,
                                     ge)
                 MC[[i]]$sample <- c(MC[[i]]$sample,
-                                    rep(samp, ncol(ge)))
+                                    rep(group, ncol(ge)))
                 MC[[i]]$size <- c(MC[[i]]$size, 
                                   table(data[[i]][[1]]$mc_info$mc@mc))
                 names(MC[[i]]$size) <- seq_along(MC[[i]]$size)
@@ -115,7 +115,7 @@ create_metacell <- function(genes, samples, files, mc_folder, mc.type, single_da
         }
     }
     MC <- MC[sapply(MC, function(x) length(x) > 0)]
-    
+    N.sc <- ncol(single_data)
     # Rename with gammas
     for(i in seq_along(MC)){
         ge <- MC[[i]]$ge
@@ -156,19 +156,22 @@ data_folder <- file.path("data", config$intermediaryDataFile)
 # Data loadings
 # ---------------------------------------------------------
 sc_data <- readRDS(file = file.path(data_folder, "singleCellData.rds"))
-groups <- unique(sc_data[[split.by]])
+groups <- unique(sc_data[[split.by]][[1]])
 
-
+set.seed(0)
 # ---------------------------------------------------------
 # Metacell creation
 # ---------------------------------------------------------
-filename <- paste('superCells', split.by, sep = '_')
-SC.list <- compute_supercells(
-    sc.GE = sc_data@assays$RNA@data,
+SC.mc <- list()
+for(group in groups){
+  cells.id <- which(sc_data[[split.by]] == as.character(group))
+  filename <- paste('superCells', split.by, sep = '_')
+  SC.list <- compute_supercells(
+    sc = sc_data[, cells.id],
     ToComputeSC = T,
     data.folder = data_folder,
     filename = filename,
-    gamma.seq = c(1, 2, 5),
+    gamma.seq = c(1, 2, 10, 20, 50, 100),
     n.var.genes = 1000,
     k.knn = 5,
     n.pc = 10,
@@ -176,22 +179,24 @@ SC.list <- compute_supercells(
     fast.pca = TRUE,
     genes.use = NULL, 
     genes.exclude = NULL,
-    seed.seq = 0
-)
-
-
-SC.mc <- compute_supercells_metacells_with_min_mc_size(
-    sc.counts = sc_data@assays$RNA@counts,
-    gamma.seq = .gamma.seq,
-    SC.list = SC.list,
-    min_mc_size_seq = min_mc_size_seq,
-    proj.name = proj.name,
-    ToComputeSC = T, 
-    mc.k.knn = 100,
-    T_vm_def = 0.08,
-    MC.folder = file.path(data_folder, 'MC'), 
-    MC_gene_settings = c('Metacell_default', 'Metacell_SC_like')
-)
+    seed.seq = 0,
+    split.by = split.by
+  )
+  
+  
+  res <- compute_supercells_metacells_with_min_mc_size(
+      sc.counts = sc_data@assays$RNA@counts[, cells.id],
+      SC.list = SC.list,
+      min_mc_size_seq =  c(1, 10, 20, 30, 50),
+      proj.name = 'metacell',
+      ToComputeSC = T, 
+      mc.k.knn = 100,
+      T_vm_def = 0.08,
+      MC.folder = file.path(data_folder, 'MC'), 
+      MC_gene_settings = c('Metacell_default', 'Metacell_SC_like')
+  )
+  SC.mc[[as.character(group)]] <- res
+}
 
 
 # ---------------------------------------------------------
@@ -203,21 +208,21 @@ for(mc.type in c('Metacell_default', 'Metacell_SC-like')){
     N.sc <- ncol(sc_data)
     
     # Default
-    genes <- find_common_genes(files = files.used,
-                               mc_folder = mc_folder,
-                               samples = samples_condition,
+    genes <- find_common_genes(mc = SC.mc,
                                mc.type = mc.type)
     
     MC <- create_metacell(genes = genes,
-                          samples = samples_condition,
-                          files = files.used,
-                          mc_folder = mc_folder,
+                          groups = groups,
+                          mc = SC.mc,
                           mc.type = mc.type,
                           single_data = sc_data)
     if(mc.type == 'Metacell_default'){
         filename <- 'mc_default.rds'
     }else{
         filename <- 'mc_SC_like.rds'
+    }
+    if(!dir.exists(mc_folder)){
+      dir.create(mc_folder, recursive = T)
     }
     saveRDS(MC, file.path(mc_folder, filename))
 }

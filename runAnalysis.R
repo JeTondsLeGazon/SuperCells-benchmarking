@@ -207,6 +207,23 @@ print(fig)
 
 
 # ---------------------------------------------------------
+# LogFC comparison
+# ---------------------------------------------------------
+if(length(intersect(c('t-test', 'DESeq2', 'EdgeR'), algos)) == 3){
+    pairs <- combn(algos, 2)
+    order.genes <- markers$bulk$`t-test`$gene
+    for(i in 1:ncol(pairs)){
+        plot(markers$bulk[[pairs[1, i]]][order.genes, 'logFC'], 
+             markers$bulk[[pairs[2, i]]][order.genes, 'logFC'], 
+             xlab = pairs[1, i],
+             ylab = pairs[2, i],
+             main = 'LogFC comparison between statistical packages')
+        abline(a = 0, b = 1, col = 'red')
+    }
+}
+
+
+# ---------------------------------------------------------
 # Rank top n genes
 # ---------------------------------------------------------
 # We compare the ranking of the n first genes between two methods to show how

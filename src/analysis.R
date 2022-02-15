@@ -39,7 +39,7 @@ find_markers <- function(ge, labels){
         data.frame()
     grp1 <- rowMeans(tmp[, treat_grp])
     grp2 <- rowMeans(tmp[, ctrl_grp])
-    logFCs <- log2(grp1 + 1) - log2(grp2 + 1)  # must do like this otherwise may / 0
+    logFCs <- log2((grp1 + 0.001) / (grp2 + 0.001))  # must do like this otherwise may / 0
     
     pvals <- apply(ge, 1, function(x) t.test(x[treat_grp], x[ctrl_grp])$p.value)
     padj <- p.adjust(pvals, 'BH', nrow(ge))

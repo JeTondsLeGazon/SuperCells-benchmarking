@@ -68,7 +68,7 @@ Here are some results obtained with this pipeline for the dataset hagai 2018 mou
 
 Please find all dependencies in the DESCRIPTION file. Additionally, you will need to install these packages:
 
-- Package [SuperCells](https://github.com/GfellerLab/SuperCell/tree/dev) from Gfeller lab, **use the dev version** (remotes::install_github("GfellerLab/SuperCell**@dev**"))
+- Package [SuperCells](https://github.com/GfellerLab/SuperCell/tree/dev) from Gfeller lab, **use the dev version** (remotes::install_github("GfellerLab/SuperCell@dev"))
 
 - Package (SuperCellBM)[https://github.com/michelhugo/SuperCellBM] from Gfeller lab but modified to run with current analyses
 

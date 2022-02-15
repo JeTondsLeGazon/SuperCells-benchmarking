@@ -26,7 +26,7 @@ The datasets used were found in a meta-anaysis on the false discoveries of singl
 
 ## Results 
 
-Here are some results obtained with this pipeline for the dataset hagai 2018 mouse:
+Here are some results obtained with this pipeline for the dataset hagai 2018 mouse. Cells were collected from 3 different mice before and after stimulation with lipopolysaccharide to trigger an immune response.
 
 - Area under the curve score for different types of markers vs bulk (left: t-test, right: DESeq2)
 
@@ -98,6 +98,10 @@ All datasets come for four different studies with published papers:
 - [Reyfman et al., 2019: Single-cell transcriptomic analysis of human lung provides insights into the pathobiology of pulmonary fibrosis](https://www.atsjournals.org/doi/10.1164/rccm.201712-2410OC)
 
 
+
+Note that data from Cano-Gamez are not in appropriate form for direct analysis (disparities between count matrix and meta data in bulk file), therefore original data, dowloaded directly form the study, may be needed.
+
+Moreover, Reyfman data for the bulk appears directly as a DE table (with p values) and not as count data. Either use directly this as ground truth, or recover the original data as well.
 
 <a name="files"/></a>
 

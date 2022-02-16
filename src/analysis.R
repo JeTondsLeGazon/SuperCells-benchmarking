@@ -64,7 +64,11 @@ LogFcLogFcPlot <- function(stats1, stats2, title = ''){
 
 
 # Plots for benchmarking purpose following special coloring and character plot
-plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'tpr_100'){
+plot_results_BM <- function(super_mc, 
+                            GT, 
+                            GT.type, 
+                            score.type = 'tpr_100', 
+                            logfc.thresh = 0){
     plot(NULL, 
          ylim=c(0,1), 
          xlim=c(1, 100), 
@@ -79,7 +83,7 @@ plot_results_BM <- function(super_mc, GT, GT.type, score.type = 'tpr_100'){
     colors.used <- c()
     legends <- c()
     for(i in seq_along(super_mc)){
-        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(GT, x)))
+        matching <- unlist(lapply(super_mc[[i]], function(x) score_func(GT, x, logfc.thresh)))
         gammas <- names(matching)
         if(grepl('metasc', names(super_mc)[i])){
             tag <- 'MetaCells Super'

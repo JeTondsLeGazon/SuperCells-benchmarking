@@ -17,7 +17,8 @@ Imports:
 	ggExtra
 	ggplot2
 	ggpubr
-	ggrepel	
+	ggrepel
+	glmGamPoi	
 	Matrix
 	pROC
 	scDblFinder

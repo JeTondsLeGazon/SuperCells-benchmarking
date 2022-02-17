@@ -29,10 +29,11 @@ computeDESeq2 <- function(counts, labels, is.single = F){
                           fitType = "glmGamPoi", 
                           minReplicatesForReplace = Inf, 
                           reduced = ~1)
+        results_wald <- results(dds_wald)
     }else{
         dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
+        results_wald <- results(dds_wald, contrast = c('label', 'treat', 'ctrl'))
     }
-    results_wald <- results(dds_wald, contrast = c('label', 'treat', 'ctrl'))
     message('Done computing DESeq2')
     return(arrangeDE(results_wald, 
               oldNameLog = 'log2FoldChange',

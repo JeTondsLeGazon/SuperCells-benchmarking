@@ -36,11 +36,13 @@ library(weights)
 library(zoo)
 library(SuperCellBM)
 library(SuperCell)
+library(glmGamPoi)
 
 source('src/utility.R')
 source('src/supercells.R')
 source('src/analysis.R')
 source('src/compute_de.R')
+
 
 # ---------------------------------------------------------
 # Meta parameters

@@ -70,9 +70,9 @@ Please find all dependencies in the DESCRIPTION file. Additionally, you will nee
 
 - Package [SuperCells](https://github.com/GfellerLab/SuperCell/tree/dev) from Gfeller lab, **use the dev version** (remotes::install_github("GfellerLab/SuperCell@dev"))
 
-- Package (SuperCellBM)[https://github.com/michelhugo/SuperCellBM] from Gfeller lab but modified to run with current analyses
+- Package [SuperCellBM](https://github.com/michelhugo/SuperCellBM) from Gfeller lab but modified to run with current analyses
 
-- Package (Metacell)[https://tanaylab.github.io/metacell/] from Tanay lab, **which runs only on Linux or Mac**.
+- Package [Metacell](https://tanaylab.github.io/metacell/) from Tanay lab, **which runs only on Linux or Mac**.
 
 
 
@@ -136,7 +136,7 @@ with what is needed accordingly.
 ### runProcessing.R
 This load the raw data and apply all the processing on bulk and single-cell data. It is advised to choose the filtering parameters according to the quality control figures obtained after the first run, then re-run with appropriate parameters.
 
-All processed data will be stored in the data folder, under the corresponding dataset used folder. Note that data are saved in a non-normalized format and a normalized one, but both can be accessed with clustered/normalized files as Seurat conserves both. Use *data@assays$RNA@data* for normalize data and *data@assays$RNA@counts* for counts.
+All processed data will be stored in the data folder, under the corresponding dataset used folder. Both normalized logcounts and non-normalized counts can be accessed in saved data, as Seurat objects can contain both. Use *data@assays$RNA@data* for normalize data and *data@assays$RNA@counts* for counts.
 
 <a name="metacell"/></a>
 
@@ -147,14 +147,14 @@ Careful, the Metacell package uses heavy computation functions, this could take 
 
 As mentioned above, this can only run on Linux or Mac. For Windows users, you can download a virtual machine along an .iso image and run this script on it.
 
-The final metacells object will be stored under data/datasetname/mc
+The final metacells object are stored under data/datasetname/mc
 
 <a name="DE"/></a>
 
 
 ### runDE.R
 It contains all the differential expression computations for single-cell, bulk, pseudo-bulk, supercell, metacell, subsampling and random grouping.
-Please check the dependencies as this requires the [dev version](https://github.com/GfellerLab/SuperCell/tree/dev) of SuperCell and a [modified version](https://github.com/michelhugo/SuperCellBM) of SuperCellBM!!
+**Please check the dependencies** as this requires the [dev version](https://github.com/GfellerLab/SuperCell/tree/dev) of SuperCell and a [modified version](https://github.com/michelhugo/SuperCellBM) of SuperCellBM!!
 
 You can select in the config file which DEs you want to run and with which algorithm to compute them. The available algorithms are: 
 
@@ -218,7 +218,7 @@ Some parameters in the config file can completely change the results and knowing
 
 - **filteringParam**: All filtering parameters used in runProcessing for the single-cell data
 
-  - doubletMaxPercentile: After the doublet score computation, specify which percentage of data should be kept based on this score. Therefore, the highest 1 - doubletMaxPercentile doublet scores will not be kept, as they will be considered to be doublets
+  - doubletMaxPercentile: After the doublet score computation, specify which percentage of data should be kept based on this score. Therefore, the highest 1 - doubletMaxPercentile doublet scores are dropped, as they will be considered to be doublets. Check the package [scDblFinder](https://bioconductor.org/packages/release/bioc/html/scDblFinder.html) for more details
   - minGenePerCell: Define the minimum number of different genes that should be in a cell. Cells with less genes will be dropped
   - minCountPerCell: Define the minimum number of counts per cell. Cells with less counts will be dropped
   - minCountPerGene: Define the minimum number of counts per gene. Genes with less counts will be dropped

@@ -3,7 +3,7 @@ Type: Script
 Title: Differential expression analysis
 Version: 0.1.0
 Author: Hugo Michel
-Maintainer: The package maintainer <yourself@somewhere.net>
+Maintainer: <michel.hugo94@gmail.com>
 Description: Compare the differentially expressed genes from different cell groups (single cell, bulk, subsampling, etc.) and from different statistical packages (DESeq2, EdgeR, ...).
 License: What license is it under?
 Encoding: UTF-8
@@ -20,6 +20,7 @@ Imports:
 	ggrepel	
 	Matrix
 	pROC
+	scDblFinder
 	Seurat
 	stringr
 	testthat

@@ -6,7 +6,7 @@
 
 # Compute DE via DESeq2 on a counts matrix with corresponding labels to columns 
 # of counts matrix
-computeDESeq2 <- function(counts, labels, is.single = F){
+computeDESeq2 <- function(counts, labels){
     
     message(sprintf('Computing DESeq2 on matrix of dimension %s x %s', dim(counts)[1], dim(counts)[2]))
     if(!check_one_zero(counts)){  # mandatory for DESeq2 to work
@@ -21,19 +21,16 @@ computeDESeq2 <- function(counts, labels, is.single = F){
     dds <- DESeqDataSetFromMatrix(counts,
                                   colData = labels, 
                                   design = ~ label)
-    if(is.single){  # For faster computation at single-cell level
-        dds_wald <- DESeq(dds, 
-                          test = "LRT", 
-                          useT = TRUE, 
-                          minmu = 1e-6,
-                          fitType = "glmGamPoi", 
-                          minReplicatesForReplace = Inf, 
-                          reduced = ~1)
-        results_wald <- results(dds_wald)
-    }else{
-        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
-        results_wald <- results(dds_wald, contrast = c('label', 'treat', 'ctrl'))
-    }
+    # For faster computation at single-cell level
+    dds_wald <- DESeq(dds, 
+                      test = "LRT", 
+                      useT = TRUE, 
+                      minmu = 1e-6,
+                      fitType = "glmGamPoi", 
+                      minReplicatesForReplace = Inf, 
+                      reduced = ~1)
+    results_wald <- results(dds_wald)
+   
     message('Done computing DESeq2')
     return(arrangeDE(results_wald, 
               oldNameLog = 'log2FoldChange',
@@ -91,7 +88,7 @@ compute_DE_single <- function(data, algo){
     ge <- data@assays$RNA@data
     
     if(algo == 'DESeq2'){
-        DE <- computeDESeq2(counts, labels, TRUE)
+        DE <- computeDESeq2(counts, labels)
     }else if(algo == 'EdgeR'){
         DE <- computeEdgeR(counts, labels)
     }else if(algo == 't-test'){
@@ -157,7 +154,7 @@ compute_supercell_DE <- function(SC, algo){
     labels <- SC$label
     if(algo == 'DESeq2'){
         counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
-        DE <- computeDESeq2(counts, labels, SC$gamma < 5)
+        DE <- computeDESeq2(counts, labels)
     }else if(algo == 'EdgeR'){
         counts <- floor(sweep(SC$counts, 2, SC$supercell_size, '*'))
         DE <- computeEdgeR(counts, labels)

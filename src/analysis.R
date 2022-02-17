@@ -239,7 +239,7 @@ plot_number_de <- function(markers, algos){
         }
     }
     tot.genes = nrow(markers$bulk[[1]])
-    ggplot(tmp, aes(x = type, y = DE, fill = factor(thresholds))) + 
+    ggplot(num.DE, aes(x = type, y = DE, fill = logFCthresholds)) + 
         geom_bar(position = position_dodge(width=0.7), stat = 'identity') + 
         facet_wrap(~algo) +
         ylab('Number of DE genes') +

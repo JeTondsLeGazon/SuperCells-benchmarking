@@ -9,24 +9,12 @@ library(pROC)
 # replicate if available (mouse/patient 1, mouse/patient 2, ...)
 createSample <- function(data){
     if('replicate' %in% names(data[[]])){
-        if(nchar(unique(data$replicate)[1]) > 1){
-            spt <- str_split(data$replicate, '')
-            pos <- sapply(spt, function(x) grep('[0-9]', x))
-            samp <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
-            return(paste0(data$label, samp))
-        }else{
-            return(paste0(data$label, data$replicate))
-        }
+        grp <- unique(data$replicate)
+        samples.num <- sapply(data$replicate, function(x) which(grp == x))
+        return(paste0(data$label, samples.num))
         
     }else if('sample' %in% names(data[[]])){
-        spt <- str_split(data$sample, '_')
-        pos <- sapply(spt, function(x) grep('mouse|patient|subject', x))
-        samples <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
-        
-        spt <- str_split(samples, '')
-        pos <- sapply(spt, function(x) grep('[0-9]', x))
-        samp <- sapply(seq_along(pos), function(i) spt[[i]][pos[i]])
-        return(paste0(data$label, samp))
+        return(data$sample)
     }else{
         return(0)
     }

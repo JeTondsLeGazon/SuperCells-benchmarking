@@ -90,7 +90,7 @@ compute_DE_single <- function(data, algo){
     ge <- data@assays$RNA@data
     
     if(algo == 'DESeq2'){
-        DE <- computeDESeq2(counts, labels)
+        DE <- computeDESeq2(counts, labels, TRUE)
     }else if(algo == 'EdgeR'){
         DE <- computeEdgeR(counts, labels)
     }else if(algo == 't-test'){

@@ -46,7 +46,7 @@ aucc <- function(set1,  # first set of DE genes, ordered by p-values
 # Uses function auc from pROC to compute the area under the curve between two
 # sets of markers
 auc <- function(gt, other, logfc.thresh = 0){
-    positives <- subset(gt, adj.p.value < 0.05 & logFC > logfc.thresh)$gene
+    positives <- subset(gt, adj.p.value < 0.05 & abs(logFC) > logfc.thresh)$gene
     labels <- rep(F, nrow(other))
     labels[which(other$gene %in% positives)] <- T
     result <- pROC::auc(labels, other$adj.p.value)
@@ -58,7 +58,7 @@ auc <- function(gt, other, logfc.thresh = 0){
 # Takes subset of statistically significant markers from ground truth and 
 # compares it to the same number of markers in other set
 tpr <- function(gt, other, logfc.thresh = 0){
-    gt.markers <- subset(gt, adj.p.value < 0.05 & logFC > logfc.thresh)$gene
+    gt.markers <- subset(gt, adj.p.value < 0.05 & abs(logFC) > logfc.thresh)$gene
     N <- length(gt.markers)
     other.markers <- other$gene[1:N]
     tp <- sum(other.markers %in% gt.markers)

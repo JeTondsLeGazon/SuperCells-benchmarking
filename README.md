@@ -176,7 +176,8 @@ After the differentially expressed markers have been computed in runDE, it is ti
 
 - Benchmarking plot to compare bulk, supercell, metacell, random grouping and subsampling
 - Volcano plot to observe p-values vs logFCs
-- LogFC-logFC plot to show the geometric vs arithmetic average computation of the gene-expression matrix of supercells
+- Number of DE genes at different logFC thresholds for bulk and Supercells
+- LogFC-logFC plot to show the geometric vs arithmetic average computation of the gene-expression matrix of Supercells
 - Rank plot to oberve top N genes ranking at different gammas
 - Weighted vs un-weighted t-test to show the effect of weighted t-test (with Supercell sizes as weights) on the p-values
 - Fraction genes, which shows which genes are found by which method and the evolution with increasing gammas

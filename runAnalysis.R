@@ -91,7 +91,7 @@ for(marker in markers.type){
 # ---------------------------------------------------------
 # Benchmarking plots to compare supercells, metacells, random grouping and subsampling
 # Aims to follow plots given in SuperCell manuscript, written by Mariia
-logfc.thresh = 0.5
+logfc.thresh <- 0.25
 for(algo in algos){
     stat.method <- switch(algo, 'DESeq2' = 'des', 'EdgeR' = 'edge', 't-test' = 't')
     to_compare <- list()
@@ -108,6 +108,15 @@ for(algo in algos){
                         logfc.thresh = logfc.thresh)
     }
 }
+
+
+# ---------------------------------------------------------
+# Number of DE genes
+# ---------------------------------------------------------
+# Show number of statistically significant (adj.p.value < 0.05) DE genes for Bulk
+# and SuperCells
+fig <- plot_number_de(markers, algos)
+print(fig)
 
 
 # ---------------------------------------------------------

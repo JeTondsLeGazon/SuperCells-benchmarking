@@ -219,3 +219,47 @@ volcano_plot <- function(stats,
     p + geom_text_repel(aes(label=ifelse(logFC >= thres.annotated.fc & adj.p.value <= thres.annotated.p & logFC > logfc.thres, as.character(gene),'')), 
                         box.padding = 0.5, color = 'black', max.overlaps = Inf)
 }
+
+
+# Plot number of DE genes for bulk and super at different gammas
+plot_number_de <- function(markers, algos){
+    num.DE <- NULL
+    for(algo in algos){
+        res <- compute_number_de(markers$bulk[[algo]], 'bulk', algo)
+        if(is.null(num.DE)){
+            num.DE <- res
+        }else{
+            num.DE <- rbind(num.DE, res)
+        }
+        for(gamma in c(1, 5, 10, 50)){
+            gamma.ch <- as.character(gamma)
+            res <- compute_number_de(markers$super[[algo]][[gamma.ch]],
+                                     paste0('super', gamma), algo)
+            num.DE <- rbind(num.DE, res)
+        }
+    }
+    tot.genes = nrow(markers$bulk[[1]])
+    ggplot(tmp, aes(x = type, y = DE, fill = factor(thresholds))) + 
+        geom_bar(position = position_dodge(width=0.7), stat = 'identity') + 
+        facet_wrap(~algo) +
+        ylab('Number of DE genes') +
+        ggtitle('Comparison of total number of DE genes') +
+        theme(plot.title = element_text(size = 20, face = "bold", color = 'red'),
+              axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+        geom_hline(yintercept=tot.genes, linetype = 'dashed')
+}
+
+
+# Create dataframe for function plot_number_de
+compute_number_de <- function(marker, type, algo){
+    thresholds <- c(0, 0.25, 0.5)
+    num.genes <- c()
+    for(t in thresholds){
+        num.gene <- nrow(subset(marker, adj.p.value < 0.05 & abs(logFC) > t))
+        num.genes <- c(num.genes, num.gene)
+    }
+    data.frame(DE = num.genes, 
+               logFCthresholds = factor(thresholds),
+               type = rep(type, length(thresholds)),
+               algo = rep(algo, length(thresholds)))
+}

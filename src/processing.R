@@ -233,8 +233,7 @@ create_pseudobulk <- function(data){
                      row.names = gene.names)
     colnames(df) <- sample.id
     meta <- data.frame(row.names = sample.id, 
-                       label = c('ctrl', 'treat')[as.numeric(sapply(sample.id, function(x) grepl('treat', x))) + 1],
-                       replicate = rep(c(seq_len(length(sample.id)/2)), 2))
+                       label = c('ctrl', 'treat')[as.numeric(sapply(sample.id, function(x) grepl('treat', x))) + 1])
     sc <- CreateSeuratObject(df, meta.data = meta)
     Idents(sc) <- 'label'
     return(sc)

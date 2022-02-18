@@ -144,6 +144,36 @@ plot_results_BM <- function(super_mc,
 }
 
 
+# Creates a dataframe compatible with ggplot to reproduce figures obtained with
+# function plot_results_BM
+dataframe_bm <- function(markers){
+    mydf <- NULL
+    for(type in names(markers)){
+        if(type != 'bulk'){
+            for(test in names(markers[[type]])){
+                for(gamma in names(markers[[type]][[test]])){
+                    gt <- markers$bulk[[test]]
+                    other <- markers[[type]][[test]][[gamma]]
+                    tmp.tpr <- tpr(gt, other) 
+                    tmp.auc <- auc(gt, other)
+                    tmpdf <- data.frame(gamma = as.numeric(gamma),
+                                        SCmethod = as.factor(type),
+                                        TPR = tmp.tpr,
+                                        AUC = tmp.auc,
+                                        DEtest = as.factor(test))
+                    if(is.null(mydf)){
+                        mydf <- tmpdf
+                    }else{
+                        mydf <- rbind(mydf, tmpdf)
+                    }
+                }
+            }
+        }
+    }
+    return(mydf)
+}
+
+
 # Calculate fraction of Genes belonging to different groups. Used to create figure
 # in runAnalysis
 fractionGenes <- function(DEs){

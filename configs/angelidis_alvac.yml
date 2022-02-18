@@ -1,0 +1,69 @@
+# 5 January 2022
+
+# Config file for the dataset hagai 2018, mouse lps
+# Values were chosen after quality control and visualization
+
+# available data
+    # Hagai2018_mouse-lps
+    # Hagai2018_mouse-pic
+    # Hagai2018_pig-lps
+    # Hagai2018_rabbit-lps
+    # Hagai2018_rat-lps
+    # Hagai2018_rat-pic
+    # Angelidis2019_pneumo
+    # Angelidis2019_alvmac
+    # CanoGamez2020_naive-iTreg
+    # CanoGamez2020_memory-Th17
+
+default:
+    
+    filename: 'Angelidis2019_alvmac.rds'
+    
+    # Folders for intermediary data and results
+    intermediaryDataFile: 'angelidis_alvac_data'
+    resultsFile: 'angelidis_alvac_results'
+    
+    ctrl_vs_treat:
+      ctrl: '3m'
+      treat: '24m'
+    
+    # all filtering parameters found after QC:
+    filteringParam:
+        doubletMaxPercentile: 0.95
+        minGenePerCell: 200
+        minCountPerCell: 200
+        minCountPerGene: 100
+        maxRiboPercent: 55
+        maxMitoPercent: 20
+        maxHbPercent: 5
+    
+    # Normalization method for single-cell matrix
+    normMethod: 'seurat'
+    
+    # If computeCluster is set to TRUE, performs k-means clustering with these 
+    # centers
+    centers: !expr matrix(c(5, -5, 5, -5, 5, 0, -10, -10), ncol = 2)
+    computeCluster: FALSE
+    
+    # Should we split supercells by samples or condition(label)?
+    splitBy: 'label' 
+    
+    # graining levels of the supercells
+    gammas: !expr c(1, 2, 5, 10, 50, 100)
+    
+    # algorithms to use for the DE analysis
+    algos: !expr c('t-test')  # among 'DESeq2', 't-test', 'EdgeR'
+    
+    # Which DEs should be (re)computed
+    DE:
+        computeSingle: F
+        computeSuper: T
+        computePseudo: F
+        computeBulk: T
+        computeMeta: T
+        computeMetaSC: T
+        computeRandom: T
+        computeSubSampling: T
+        
+    # Compute supercell (True) or load them if possible (False)
+    compute_supercell: F

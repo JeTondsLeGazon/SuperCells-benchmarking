@@ -6,7 +6,7 @@
 
 # Compute DE via DESeq2 on a counts matrix with corresponding labels to columns 
 # of counts matrix
-computeDESeq2 <- function(counts, labels){
+computeDESeq2 <- function(counts, labels, is.bulk = F){
     
     message(sprintf('Computing DESeq2 on matrix of dimension %s x %s', dim(counts)[1], dim(counts)[2]))
     if(!check_one_zero(counts)){  # mandatory for DESeq2 to work
@@ -21,16 +21,20 @@ computeDESeq2 <- function(counts, labels){
     dds <- DESeqDataSetFromMatrix(counts,
                                   colData = labels, 
                                   design = ~ label)
-    # For faster computation at single-cell level
-    dds_wald <- DESeq(dds, 
-                      test = "LRT", 
-                      useT = TRUE, 
-                      minmu = 1e-6,
-                      fitType = "glmGamPoi", 
-                      minReplicatesForReplace = Inf, 
-                      reduced = ~1)
+    if(!is.bulk){
+        # For faster computation at single-cell level
+        dds_wald <- DESeq(dds, 
+                          test = "LRT", 
+                          useT = TRUE, 
+                          minmu = 1e-6,
+                          fitType = "glmGamPoi", 
+                          minReplicatesForReplace = Inf, 
+                          reduced = ~1)
+    }else{
+        dds_wald <- DESeq(dds, test = 'Wald', minReplicatesForReplace = Inf)
+    }
+    
     results_wald <- results(dds_wald)
-   
     message('Done computing DESeq2')
     return(arrangeDE(results_wald, 
               oldNameLog = 'log2FoldChange',
@@ -68,7 +72,7 @@ compute_DE_bulk <- function(data, labels, algo){
         if(class(labels) != "data.frame"){
             labels <- data.frame(label = labels, row.names = colnames(data))
         }
-        DE <- computeDESeq2(counts, labels)
+        DE <- computeDESeq2(counts, labels, T)
     }else if(algo == 'EdgeR'){
         DE <- computeEdgeR(counts, labels)
     }else if(algo == 't-test'){

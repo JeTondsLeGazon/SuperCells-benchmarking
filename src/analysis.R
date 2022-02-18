@@ -177,6 +177,7 @@ dataframe_bm <- function(markers){
 # Calculate fraction of Genes belonging to different groups. Used to create figure
 # in runAnalysis
 fractionGenes <- function(DEs){
+    DEs <- lapply(DEs, function(x) subset(x, adj.p.value < 0.05 & logFC > 0.25))
     lapply(DEs, function(DE) sapply(DE$gene, function(x) fractionGene(x, DEs)))
 }
 

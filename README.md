@@ -172,14 +172,27 @@ Additionally, this will compute and save SuperCells under data/dataset_folder_da
 
 ### runAnalysis.R
 
-After the differentially expressed markers have been computed in runDE, it is time to analyse the results via different plots and figures:
+After the differentially expressed markers have been computed in runDE, it is time to analyse the results via different plots and figures. Here are some examples of figures that have been computed:
 
-- Benchmarking plot to compare bulk, supercell, metacell, random grouping and subsampling
+- Benchmarking plot to compare bulk, supercell, metacell, random grouping and subsampling (see in results)
+
 - Volcano plot to observe p-values vs logFCs
+
+  <img src="figs/volcano.png" alt="drawing" width="450"/>
+
 - Number of DE genes at different logFC thresholds for bulk and Supercells
-- LogFC-logFC plot to show the geometric vs arithmetic average computation of the gene-expression matrix of Supercells
+
+  <img src="figs/numDE.png" alt="drawing" width="450"/>
+
+- LogFC-logFC plot to show the geometric vs arithmetic average computation of the gene-expression matrix of Supercells and logFC comparison between different statistical tests
+
+<img src="figs/logFC_comp.png" alt="drawing" width="450"/>
+
 - Rank plot to oberve top N genes ranking at different gammas
 - Weighted vs un-weighted t-test to show the effect of weighted t-test (with Supercell sizes as weights) on the p-values
+
+<img src="figs/w_vs_unw.png" alt="drawing" width="450"/>
+
 - Fraction genes, which shows which genes are found by which method and the evolution with increasing gammas
 
 Of course feel free to modify them and create new analyses!
